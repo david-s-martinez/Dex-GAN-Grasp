@@ -1,0 +1,48 @@
+# path related
+data_dir: /data/hdd1/qf/hithand_data/collision_only_data_new2 # path to dataset
+load_path: /home/vm/hand_ws/src/FFHNet-dev/checkpoints/2022-10-06T15_50_05_FFHEvaluator # in case continue training otherwise leave empty
+gazebo_obj_path: /home/yb/Projects/gazebo-objects
+
+# train/eval mode
+model: pointnet # either ffhnet or pointnet
+model_name: FFHCollDetr # cooresponding to the class name of the model. Have to also change the import class name in the script.
+name: ffhnet_lr_0.0001_bs_1000 # name saved as checkpoint
+continue_train: false # true for loading model from load_path, otherwise start from 1 epoch.
+load_epoch: 1
+is_train: true
+ds_name: train
+grasp_data_file_name: grasp_data_all.h5
+gpu_ids:
+  - 0
+num_threads: 1
+train_ffhcolldetr: true
+train_ffhevaluator: false
+train_ffhgenerator: false
+eval_ffhcolldetr: true
+eval_ffhevaluator: false
+eval_ffhgenerator: false
+vis_grasp_refinement: false
+
+# log
+print_freq: 100 # times to print within one epoch
+save_freq: 1
+save_latest_freq: 1
+to_tensorboard: true
+
+# model hyper param
+batch_size: 32
+beta1: 0.9
+bce_weight: 1 # 10 for ffhnet
+init_gain: 0.02
+kl_coef: 0.005
+latentD: 5
+lr: 0.0001
+lr_policy: plateau
+num_bps_per_object: 5
+num_epochs: 30
+patience_lr_policy_plateau: 3
+scale: 1
+threshold_lr_policy_plateau: 0.01
+weight_decay: 0.0005
+weight_init_type: xavier
+

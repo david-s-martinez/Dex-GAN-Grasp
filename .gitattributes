@@ -1,0 +1,4 @@
+*.pt filter=lfs diff=lfs merge=lfs -text
+/hithand_grabnet.egg-info/PKG-INFO filter=lfs diff=lfs merge=lfs -text
+models/ffhevaluator/30_eva_net.pt filter=lfs diff=lfs merge=lfs -text
+models/ffhgenerator/10_gen_net.pt filter=lfs diff=lfs merge=lfs -text

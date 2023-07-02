@@ -1,0 +1,8 @@
+build/*
+.vscode
+*.swp
+*.pyc
+checkpoints/
+figures/
+dist/
+FFHNet.egg-info/

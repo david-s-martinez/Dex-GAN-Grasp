@@ -1,0 +1,23 @@
+================ Eval Loss (Fri Feb 17 11:49:55 2023) ================
+(epoch: 1) total_loss_eva: 5.89129 pos_acc: 0.57884 neg_acc: 0.79759
+(epoch: 2) total_loss_eva: 5.33176 pos_acc: 0.62441 neg_acc: 0.81877
+(epoch: 3) total_loss_eva: 5.07868 pos_acc: 0.64486 neg_acc: 0.82218
+(epoch: 4) total_loss_eva: 4.93593 pos_acc: 0.65663 neg_acc: 0.83001
+(epoch: 5) total_loss_eva: 4.83138 pos_acc: 0.66999 neg_acc: 0.83110
+(epoch: 6) total_loss_eva: 4.83024 pos_acc: 0.67360 neg_acc: 0.83058
+(epoch: 7) total_loss_eva: 4.79941 pos_acc: 0.67373 neg_acc: 0.83161
+(epoch: 8) total_loss_eva: 4.73817 pos_acc: 0.66754 neg_acc: 0.83921
+(epoch: 9) total_loss_eva: 4.73380 pos_acc: 0.67722 neg_acc: 0.83587
+(epoch: 10) total_loss_eva: 4.76408 pos_acc: 0.66754 neg_acc: 0.84084
+(epoch: 11) total_loss_eva: 4.76050 pos_acc: 0.67102 neg_acc: 0.83832
+(epoch: 12) total_loss_eva: 4.76664 pos_acc: 0.66950 neg_acc: 0.83630
+(epoch: 13) total_loss_eva: 4.76988 pos_acc: 0.66902 neg_acc: 0.83952
+(epoch: 14) total_loss_eva: 4.75854 pos_acc: 0.67155 neg_acc: 0.83851
+(epoch: 15) total_loss_eva: 4.73871 pos_acc: 0.67261 neg_acc: 0.84101
+(epoch: 16) total_loss_eva: 4.72714 pos_acc: 0.66834 neg_acc: 0.84254
+================ Eval Loss (Mon Feb 20 20:19:33 2023) ================
+================ Eval Loss (Mon Feb 20 20:47:38 2023) ================
+(epoch: 18) total_loss_eva: 4.74676 pos_acc: 0.67255 neg_acc: 0.83859
+(epoch: 19) total_loss_eva: 4.68972 pos_acc: 0.67481 neg_acc: 0.84129
+(epoch: 20) total_loss_eva: 4.75338 pos_acc: 0.66570 neg_acc: 0.84274
+(epoch: 21) total_loss_eva: 4.75818 pos_acc: 0.66483 neg_acc: 0.84404
