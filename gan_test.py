@@ -84,7 +84,7 @@ def train():
     parser = argparse.ArgumentParser(
     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--config', help='Path to template image.',
-                        default='FFHNet/config/config_ffhnet_vm_test.yaml')
+                        default='FFHNet/config/config_ffhgan.yaml')
     args = parser.parse_args()
 
     # load configuration params
@@ -163,27 +163,29 @@ def train():
             if total_steps % cfg["print_freq"] == 0:
                 t_load = cur_iter_start - prev_iter_end  # time for data loading
                 t_total = (time.time() - cur_iter_start) // 60
-                writer.print_current_train_loss(epoch, epoch_iter, loss_dict, t_total, t_load)
-                writer.plot_train_loss(loss_dict, epoch, epoch_iter, len(dset_gen))
+                # TODO: implement writer.
+                # writer.print_current_train_loss(epoch, epoch_iter, loss_dict, t_total, t_load)
+                # writer.plot_train_loss(loss_dict, epoch, epoch_iter, len(dset_gen))
 
             prev_iter_end = time.time()
             # End of data loading generator
 if __name__ == '__main__':
+    if False:
+        parser = argparse.ArgumentParser()
+        parser.add_argument('--gen_path', default='models/ffhgenerator', help='path to FFHGenerator model')
+        parser.add_argument('--load_gen_epoch', type=int, default=10, help='epoch of FFHGenerator model')
+        parser.add_argument('--eva_path', default='models/ffhevaluator', help='path to FFHEvaluator model')
+        parser.add_argument('--load_eva_epoch', type=int, default=30, help='epoch of FFHEvaluator model')
+        parser.add_argument('--config', type=str, default='FFHNet/config/config_ffhgan.yaml')
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--gen_path', default='models/ffhgenerator', help='path to FFHGenerator model')
-    parser.add_argument('--load_gen_epoch', type=int, default=10, help='epoch of FFHGenerator model')
-    parser.add_argument('--eva_path', default='models/ffhevaluator', help='path to FFHEvaluator model')
-    parser.add_argument('--load_eva_epoch', type=int, default=30, help='epoch of FFHEvaluator model')
-    parser.add_argument('--config', type=str, default='FFHNet/config/config_ffhnet_yb.yaml')
+        args = parser.parse_args()
 
-    args = parser.parse_args()
+        load_path_gen = args.gen_path
+        load_path_eva = args.eva_path
+        load_epoch_gen = args.load_gen_epoch
+        load_epoch_eva = args.load_eva_epoch
+        config_path = args.config
 
-    load_path_gen = args.gen_path
-    load_path_eva = args.eva_path
-    load_epoch_gen = args.load_gen_epoch
-    load_epoch_eva = args.load_eva_epoch
-    config_path = args.config
-
-    eval_ffhnet_sampling_and_filtering_real(config_path, load_epoch_eva, load_epoch_gen, load_path_eva,
-                                            load_path_gen, show_individual_grasps=True)
+        eval_ffhnet_sampling_and_filtering_real(config_path, load_epoch_eva, load_epoch_gen, load_path_eva,
+                                                load_path_gen, show_individual_grasps=True)
+    train()

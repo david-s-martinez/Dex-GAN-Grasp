@@ -241,14 +241,18 @@ class FFHGANet(object):
         """
         # Pose loss, translation rotation
         gt_transl_rot_matrix = {
-            'transl': real_data['transl'],
-            'rot_matrix': real_data['rot_matrix']
+            'transl': real_data['transl'].to(self.FFHGAN.device).float(),
+            'rot_matrix': real_data['rot_matrix'].to(self.FFHGAN.device).float()
         }
         transl_loss_val, rot_loss_val = self.rec_pose_loss(fake_data, gt_transl_rot_matrix,
                                                            self.L2_loss, self.device)
-
+        transl_loss_val, rot_loss_val = transl_loss_val, rot_loss_val
+        print(fake_data['joint_conf'].shape, real_data['joint_conf'].shape)
         # Loss on joint angles
-        conf_loss_val = self.L2_loss(fake_data['joint_conf'], real_data['joint_conf'])
+        conf_loss_val = self.L2_loss(
+            fake_data['joint_conf'].to(self.FFHGAN.device).float(), 
+            real_data['joint_conf'].to(self.FFHGAN.device).float()
+        )
 
         # Generator fake loss
         gen_loss_fake = self.bce_weight * self.BCE_loss(
@@ -263,6 +267,7 @@ class FFHGANet(object):
             'conf_loss': self.conf_coef * conf_loss_val
         }
         total_loss = gen_loss_fake + (loss_dict['transl_loss'] + loss_dict['rot_loss'] + loss_dict['conf_loss'])
+        print(total_loss.dtype)
         loss_dict["total_loss_gen"] = total_loss
 
         return total_loss, loss_dict
@@ -784,25 +789,37 @@ class FFHGANet(object):
         """
         # Make sure net is in train mode
         self.FFHGAN.train()
-
         # Train Discriminator
-        n_samples = 1
+        n_samples = real_data["bps_object"].shape[0]
         Zgen = torch.randn((n_samples, self.FFHGAN.latentD), dtype=self.FFHGAN.dtype, device=self.FFHGAN.device)
+        # Zgen = torch.randn((n_samples, self.FFHGAN.latentD), dtype=self.FFHGAN.dtype)
         # Run forward pass of ffhgenerator and reconstruct the data
-        y_fake = self.FFHGAN.generator(Zgen, real_data["bps_object"])
+        y_fake = self.FFHGAN.generator(Zgen, real_data["bps_object"].to(self.FFHGAN.device))
         fake_rot_6D = y_fake["rot_6D"]
         fake_transl = y_fake["transl"]
         fake_joint_conf = y_fake["joint_conf"]
+        y_fake["rot_matrix"] = utils.rot_matrix_from_ortho6d(y_fake["rot_6D"])
+
         fake_data = {
             "bps_object": real_data["bps_object"],
             "rot_matrix": fake_rot_6D,
+            # "rot_matrix": y_fake["rot_matrix"],
+            "rot_6D": fake_rot_6D,
             "transl": fake_transl,
             "joint_conf": fake_joint_conf
+        }
+        fake_data_disc = {
+            "bps_object": real_data["bps_object"],
+            # "rot_matrix": fake_rot_6D.detach(),
+            "rot_matrix": y_fake["rot_matrix"].detach(),
+            # "rot_6D": fake_rot_6D.detach(),
+            "transl": fake_transl.detach(),
+            "joint_conf": fake_joint_conf.detach()
         }
 
         # Pass both real and fake data through the discriminator
         real_score = self.FFHGAN.discriminator(real_data)
-        fake_score = self.FFHGAN.discriminator(fake_data.detach())
+        fake_score = self.FFHGAN.discriminator(fake_data_disc)
         # fake_score = self.FFHGAN.discriminator(fake_data)
 
         total_loss_disc, loss_dict_disc = self.compute_loss_ffhgan_discriminator(real_score, fake_score)
@@ -811,8 +828,11 @@ class FFHGANet(object):
         self.optim_ffhgan_discriminator.step()
 
         # Train Generator
-        fake_score_gen = self.FFHGAN.discriminator(fake_data)
+        fake_data_gen = fake_data
+        fake_data_gen["rot_matrix"] = y_fake["rot_matrix"]
+        fake_score_gen = self.FFHGAN.discriminator(fake_data_gen)
         # Compute loss based on reconstructed data
+        real_data["rot_matrix"] = real_data["rot_matrix"].view(real_data["bps_object"].shape[0], -1)
         total_loss_gen, loss_dict_gen = self.compute_loss_ffhgan_generator(real_data, fake_data, fake_score_gen)
 
         # Zero gradients, backprop new loss gradient, run one step

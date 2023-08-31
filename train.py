@@ -18,7 +18,7 @@ def main():
     parser = argparse.ArgumentParser(
     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--config', help='Path to template image.',
-                        default='FFHNet/config/config_ffhnet_vm_test.yaml')
+                        default='FFHNet/config/config_ffhgan.yaml')
     args = parser.parse_args()
 
     # load configuration params

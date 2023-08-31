@@ -6,3 +6,4 @@ checkpoints/
 figures/
 dist/
 FFHNet.egg-info/
+data/robotiq_data_v1.0

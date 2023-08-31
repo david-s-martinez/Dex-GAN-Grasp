@@ -133,7 +133,7 @@ class FFHGeneratorDataSet(data.Dataset):
             print(diffs[diffs > 0.09])
 
         # Turn the full 20 DoF into 15 DoF as every 4th joint is coupled with the third
-        joint_conf = utils.reduce_joint_conf(joint_conf)
+        # joint_conf = utils.reduce_joint_conf(joint_conf) #not necessary for robotiq?
 
         # Extract rotmat and transl
         palm_rot_matrix = palm_pose_centr[:3, :3]
@@ -172,7 +172,7 @@ if __name__ == '__main__':
     path = os.path.dirname(os.path.abspath(__file__))
     BASE_PATH = os.path.split(os.path.split(path)[0])[0]
 
-    path = os.path.join(BASE_PATH, "FFHNet/config/config_ffhnet_vm_debug.yaml")
+    path = os.path.join(BASE_PATH, "FFHNet/config/config_ffhgan.yaml")
     config = Config(path)
     cfg = config.parse()
     gds = FFHGeneratorDataSet(cfg)

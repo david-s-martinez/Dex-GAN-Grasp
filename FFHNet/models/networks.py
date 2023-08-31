@@ -60,7 +60,7 @@ class Generator(nn.Module):
                  cfg,
                  n_neurons=512,
                  in_bps=4096,
-                 in_pose=9 + 3 + 15,
+                 in_pose=9 + 3 + 12,
                  dtype=torch.float32,
                  **kwargs):
 
@@ -74,7 +74,7 @@ class Generator(nn.Module):
         self.gen_rb1 = ResBlock(self.latentD + in_bps, n_neurons)
         self.gen_rb2 = ResBlock(n_neurons + self.latentD + in_bps, n_neurons)
 
-        self.gen_joint_conf = nn.Linear(n_neurons, 15)
+        self.gen_joint_conf = nn.Linear(n_neurons, 12)
         self.gen_rot = nn.Linear(n_neurons, 6)
         self.gen_transl = nn.Linear(n_neurons, 3)
 
@@ -90,12 +90,12 @@ class Generator(nn.Module):
     def forward(self, Zin, bps_object):
 
         bs = Zin.shape[0]
-        o_bps = self.gen_bn1(bps_object)
+        o_bps = self.gen_bn1(bps_object.contiguous())
 
         X0 = torch.cat([Zin, o_bps], dim=1)
         X = self.gen_rb1(X0, True)
         X = self.gen_rb2(torch.cat([X0, X], dim=1), True)
-
+        # print('x gen', X.shape)
         joint_conf = self.gen_joint_conf(X)
         rot_6D = self.gen_rot(X)
         transl = self.gen_transl(X)
@@ -109,7 +109,7 @@ class Discriminator(nn.Module):
                  cfg,
                  n_neurons=512,
                  in_bps=4096,
-                 in_pose=9 + 3 + 15,
+                 in_pose=9 + 3 + 12,
                  dtype=torch.float32,
                  **kwargs):
 
@@ -121,7 +121,8 @@ class Discriminator(nn.Module):
         self.disc_rb1 = ResBlock(in_bps + in_pose, n_neurons)
         # why input in_bps again here?
         self.disc_rb2 = ResBlock(n_neurons + in_bps + in_pose, n_neurons)
-
+        self.out_success = nn.Linear(n_neurons, 1)
+        self.sigmoid = nn.Sigmoid()
         if self.cfg["is_train"]:
             print("Discriminator currently in TRAIN mode!")
             self.train()
@@ -165,7 +166,7 @@ class FFHGAN(nn.Module):
                  cfg,
                  n_neurons=512,
                  in_bps=4096,
-                 in_pose=9 + 3 + 15,
+                 in_pose=9 + 3 + 12,
                  dtype=torch.float32,
                  **kwargs):
 
@@ -191,7 +192,8 @@ class FFHGAN(nn.Module):
             in_pose,
             dtype)
         self.generator.to(self.device)
-        
+        self.discriminator.device = self.device
+        self.generator.device = self.device
         if self.cfg["is_train"]:
             print("FFHGAN currently in TRAIN mode!")
             self.train()
@@ -277,7 +279,8 @@ class FFHGenerator(nn.Module):
                  cfg,
                  n_neurons=512,
                  in_bps=4096,
-                 in_pose=9 + 3 + 15,
+                 in_pose=9 + 3 + 12,
+                #  in_pose=9 + 3 + 15,
                  dtype=torch.float32,
                  **kwargs):
 
@@ -300,7 +303,8 @@ class FFHGenerator(nn.Module):
         self.dec_rb1 = ResBlock(self.latentD + in_bps, n_neurons)
         self.dec_rb2 = ResBlock(n_neurons + self.latentD + in_bps, n_neurons)
 
-        self.dec_joint_conf = nn.Linear(n_neurons, 15)
+        # self.dec_joint_conf = nn.Linear(n_neurons, 15)
+        self.dec_joint_conf = nn.Linear(n_neurons, 12)
         self.dec_rot = nn.Linear(n_neurons, 6)
         self.dec_transl = nn.Linear(n_neurons, 3)
 
