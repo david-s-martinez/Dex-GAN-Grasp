@@ -14,7 +14,7 @@ try:
 except:
     print("[WARNING] bps_torch not installed.")
 
-from FFHNet.utils.definitions import HAND_CFG
+from FFHNet.utils.definitions import HAND_CFG, ROBOTIQ_CFG
 
 
 def quat_xyzw2wxyz(quat):
@@ -156,8 +156,11 @@ def full_joint_conf_from_partial_joint_conf(partial_joint_conf):
 
 
 def get_hand_cfg_map(cfg_arr):
-    cfg_map = HAND_CFG
-    keys = sorted(HAND_CFG.keys())
+    if len(cfg_arr) == 12:
+        cfg_map = ROBOTIQ_CFG
+    else :
+        cfg_map = HAND_CFG
+    keys = sorted(cfg_map.keys())
     for idx, k in enumerate(keys):
         cfg_map[k] = cfg_arr[idx]
     return cfg_map

@@ -20,3 +20,21 @@ HAND_CFG = {
     'Right_Thumb_2': 0.2,
     'Right_Thumb_3': 0.2,
 }
+ROBOTIQ_CFG = {
+    'finger_1_joint_1': 0.2,
+    'finger_1_joint_2': 0.2,
+    'finger_1_joint_2': 0.2,
+
+    'finger_2_joint_1': 0.2,
+    'finger_2_joint_2': 0.2,
+    'finger_2_joint_2': 0.2,
+    
+    'finger_middle_joint_1': 0.2,
+    'finger_middle_joint_2': 0.2,
+    'finger_middle_joint_2': 0.2,
+
+    'palm_finger_1_joint': 0.2,
+    'palm_finger_2_joint': 0.2,
+    'palm_finger_middle_joint': 0.2,
+
+}

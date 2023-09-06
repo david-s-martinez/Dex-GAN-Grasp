@@ -535,7 +535,7 @@ def show_grasp_and_object_given_pcd(pcd, centr_T_palm, joint_conf):
                     "fullscreen": False}, use_raymond_lighting=True)
 
 
-def show_grasp_and_object(path, palm_T_centr, joint_conf):
+def show_grasp_and_object(path, palm_T_centr, joint_conf, urdf_path = 'meshes/hithand_palm/hithand.urdf'):
     """Visualize the grasp object and the hand relative to it
 
     Args:
@@ -544,25 +544,30 @@ def show_grasp_and_object(path, palm_T_centr, joint_conf):
         joint_conf (15 or 20*1 array): 15 or 20 dimensional joint configuration
     """
     robot = URDF.load(os.path.join(
-        BASE_PATH, 'meshes/hithand_palm/hithand.urdf'))
+        BASE_PATH, urdf_path))
 
     # get the full joint config
     if joint_conf.shape[0] == 15:
         joint_conf_full = utils.full_joint_conf_from_partial_joint_conf(
             joint_conf)
-    elif joint_conf.shape[0] == 20:
+    elif joint_conf.shape[0] == 20 or joint_conf.shape[0] == 12:
         joint_conf_full = joint_conf
     else:
-        raise Exception('Joint_conf has the wrong size in dimension one: %d. Should be 15 or 20' %
+        raise Exception('Joint_conf has the wrong size in dimension one: %d. Should be 12, 15 or 20' %
                         joint_conf.shape[0])
     cfg_map = utils.get_hand_cfg_map(joint_conf_full)
 
     # compute fk for meshes and links
     fk = robot.visual_trimesh_fk(cfg=cfg_map)
     fk_link = robot.link_fk()
-    assert robot.links[2].name == 'palm_link_hithand'  # link 2 must be palm
-    # get the transform from base to palm
-    palm_T_base = fk_link[robot.links[2]]
+    if joint_conf.shape[0] == 12:
+        assert robot.links[0].name == 'palm_link_robotiq'  # link 0 must be palm
+        # get the transform from base to palm
+        palm_T_base = fk_link[robot.links[0]]
+    else:
+        assert robot.links[2].name == 'palm_link_hithand'  # link 2 must be palm
+        # get the transform from base to palm
+        palm_T_base = fk_link[robot.links[2]]
 
     # Compute the transform from base to object centroid frame
     centr_T_palm = np.linalg.inv(palm_T_centr)

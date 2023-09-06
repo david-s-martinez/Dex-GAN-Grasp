@@ -444,7 +444,8 @@ def eval_ffhnet_sampling_and_filtering_real(config_path,
                 #     continue
                 joint_conf = filtered_grasps_2['joint_conf'][j, :]
                 palm_pose_centr = utils.hom_matrix_from_transl_rot_matrix(transl, rot_matrix)
-                visualization.show_grasp_and_object(obj_pcd_path, palm_pose_centr, joint_conf)
+                visualization.show_grasp_and_object(obj_pcd_path, palm_pose_centr, joint_conf,
+                                                    'meshes/robotiq_palm/robotiq-3f-gripper_articulated.urdf')
                 a = input('Break loop? (y/n): ')
                 if a == 'y':
                     break
@@ -489,7 +490,7 @@ def eval_ffhgenerator_qualitatively(load_epoch,
                 joint_conf = grasps['joint_conf'][j, :]
                 palm_pose_centr = utils.hom_matrix_from_transl_rot_matrix(transl, rot_matrix)
                 visualization.show_grasp_and_object(data['pcd_path'][0], palm_pose_centr,
-                                                    joint_conf)
+                                                    joint_conf,'meshes/robotiq_palm/robotiq-3f-gripper_articulated.urdf')
 
 
 def eval_ffhgenerator_qualitatively_on_real_data(load_epoch,
@@ -528,7 +529,8 @@ def eval_ffhgenerator_qualitatively_on_real_data(load_epoch,
                 #     continue
                 joint_conf = grasps['joint_conf'][j, :]
                 palm_pose_centr = utils.hom_matrix_from_transl_rot_matrix(transl, rot_matrix)
-                visualization.show_grasp_and_object(obj_pcd_path, palm_pose_centr, joint_conf)
+                visualization.show_grasp_and_object(obj_pcd_path, palm_pose_centr, joint_conf, 
+                                                    'meshes/robotiq_palm/robotiq-3f-gripper_articulated.urdf')
 
 
 def eval_eva_acc_multiple_epochs(epochs, path):
@@ -550,11 +552,13 @@ def eval_eva_acc_multiple_epochs(epochs, path):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--gen_path', default='models/ffhgenerator', help='path to FFHGenerator model')
+    # parser.add_argument('--gen_path', default='models/ffhgenerator', help='path to FFHGenerator model')
+    parser.add_argument('--gen_path', default='checkpoints/2023-09-01T01_16_11_ffhnet_lr_0.0001_bs_1000', help='path to FFHGenerator model')
     parser.add_argument('--load_gen_epoch', type=int, default=10, help='epoch of FFHGenerator model')
     parser.add_argument('--eva_path', default='models/ffhevaluator', help='path to FFHEvaluator model')
     parser.add_argument('--load_eva_epoch', type=int, default=30, help='epoch of FFHEvaluator model')
-    parser.add_argument('--config', type=str, default='FFHNet/config/config_ffhnet_yb.yaml')
+    # parser.add_argument('--config', type=str, default='FFHNet/config/config_ffhnet_yb.yaml')
+    parser.add_argument('--config', type=str, default='FFHNet/config/config_ffhgan.yaml')
 
     args = parser.parse_args()
 
