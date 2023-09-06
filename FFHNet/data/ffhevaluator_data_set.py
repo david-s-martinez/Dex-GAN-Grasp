@@ -16,7 +16,7 @@ class FFHEvaluatorDataSet(data.Dataset):
     def __init__(self, cfg, eval=False,dtype=torch.float32):
         super(FFHEvaluatorDataSet, self).__init__()
         self.dtype = dtype
-
+        self.is_group_joints = cfg["is_group_joints"]
         self.pos_ratio = 0.3
         self.neg_ratio = 0.3
         self.hard_negative_ratio = 0.4
@@ -138,7 +138,8 @@ class FFHEvaluatorDataSet(data.Dataset):
             palm_pose_centr = utils.hard_negative_from_positive(palm_pose_centr)
 
         # Turn the full 20 DoF into 15 DoF as every 4th joint is coupled with the third
-        joint_conf = utils.reduce_joint_conf(joint_conf)
+        if self.is_group_joints:
+            joint_conf = utils.reduce_joint_conf(joint_conf)
 
         # Extract rotmat and transl
         palm_rot_matrix = palm_pose_centr[:3, :3]
@@ -274,7 +275,8 @@ class FFHEvaluatorPCDDataSet(FFHEvaluatorDataSet):
             palm_pose_centr = utils.hard_negative_from_positive(palm_pose_centr)
 
         # Turn the full 20 DoF into 15 DoF as every 4th joint is coupled with the third
-        joint_conf = utils.reduce_joint_conf(joint_conf)
+        if self.is_group_joints:
+            joint_conf = utils.reduce_joint_conf(joint_conf)
 
         # Extract rotmat and transl
         palm_rot_matrix = palm_pose_centr[:3, :3]

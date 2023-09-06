@@ -10,6 +10,7 @@ name: ffhnet_lr_0.0001_bs_1000 # name saved as checkpoint
 continue_train: false # true for loading model from load_path, otherwise start from 1 epoch.
 load_epoch: 1
 is_train: true
+is_group_joints: true
 ds_name: train
 grasp_data_file_name: grasp_data_all.h5
 gpu_ids:
@@ -30,6 +31,7 @@ save_latest_freq: 1
 to_tensorboard: true
 
 # model hyper param
+n_hand_joints: 15
 batch_size: 32
 beta1: 0.9
 bce_weight: 1 # 10 for ffhnet

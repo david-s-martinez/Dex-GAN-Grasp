@@ -19,7 +19,7 @@ class FFHGeneratorDataSet(data.Dataset):
             cfg["ds_name"] = "train"
 
         self.dtype = dtype
-
+        self.is_group_joints = cfg["is_group_joints"]
         self.ds_path = os.path.join(cfg["data_dir"], cfg["ds_name"])
         self.objs_names = self.get_objs_names(self.ds_path)
         self.objs_folder = os.path.join(self.ds_path, 'bps')
@@ -133,7 +133,8 @@ class FFHGeneratorDataSet(data.Dataset):
             print(diffs[diffs > 0.09])
 
         # Turn the full 20 DoF into 15 DoF as every 4th joint is coupled with the third
-        # joint_conf = utils.reduce_joint_conf(joint_conf) #not necessary for robotiq?
+        if self.is_group_joints:
+            joint_conf = utils.reduce_joint_conf(joint_conf) #not necessary for robotiq?
 
         # Extract rotmat and transl
         palm_rot_matrix = palm_pose_centr[:3, :3]

@@ -60,21 +60,21 @@ class Generator(nn.Module):
                  cfg,
                  n_neurons=512,
                  in_bps=4096,
-                 in_pose=9 + 3 + 12,
+                 in_pose=9 + 3,
                  dtype=torch.float32,
                  **kwargs):
 
         super(Generator, self).__init__()
 
         self.cfg = cfg
-
+        in_pose += cfg["n_hand_joints"]
         self.latentD = cfg["latentD"]
 
         self.gen_bn1 = nn.BatchNorm1d(in_bps)
         self.gen_rb1 = ResBlock(self.latentD + in_bps, n_neurons)
         self.gen_rb2 = ResBlock(n_neurons + self.latentD + in_bps, n_neurons)
 
-        self.gen_joint_conf = nn.Linear(n_neurons, 12)
+        self.gen_joint_conf = nn.Linear(n_neurons, cfg["n_hand_joints"])
         self.gen_rot = nn.Linear(n_neurons, 6)
         self.gen_transl = nn.Linear(n_neurons, 3)
 
@@ -109,14 +109,14 @@ class Discriminator(nn.Module):
                  cfg,
                  n_neurons=512,
                  in_bps=4096,
-                 in_pose=9 + 3 + 12,
+                 in_pose=9 + 3,
                  dtype=torch.float32,
                  **kwargs):
 
         super(Discriminator, self).__init__()
 
         self.cfg = cfg
-
+        in_pose += cfg["n_hand_joints"]
         self.disc_bn1 = nn.BatchNorm1d(in_bps + in_pose)
         self.disc_rb1 = ResBlock(in_bps + in_pose, n_neurons)
         # why input in_bps again here?
@@ -166,13 +166,14 @@ class FFHGAN(nn.Module):
                  cfg,
                  n_neurons=512,
                  in_bps=4096,
-                 in_pose=9 + 3 + 12,
+                 in_pose=9 + 3,
                  dtype=torch.float32,
                  **kwargs):
 
         super(FFHGAN, self).__init__()
 
         self.cfg = cfg
+        in_pose += cfg["n_hand_joints"]
         self.device = torch.device('cuda:{}'.format(
             cfg["gpu_ids"][0])) if torch.cuda.is_available() else torch.device('cpu')
 
@@ -279,15 +280,14 @@ class FFHGenerator(nn.Module):
                  cfg,
                  n_neurons=512,
                  in_bps=4096,
-                 in_pose=9 + 3 + 12,
-                #  in_pose=9 + 3 + 15,
+                 in_pose=9 + 3,
                  dtype=torch.float32,
                  **kwargs):
 
         super(FFHGenerator, self).__init__()
 
         self.cfg = cfg
-
+        in_pose += cfg["n_hand_joints"]
         self.latentD = cfg["latentD"]
 
         self.enc_bn1 = nn.BatchNorm1d(in_bps + in_pose)
@@ -303,8 +303,7 @@ class FFHGenerator(nn.Module):
         self.dec_rb1 = ResBlock(self.latentD + in_bps, n_neurons)
         self.dec_rb2 = ResBlock(n_neurons + self.latentD + in_bps, n_neurons)
 
-        # self.dec_joint_conf = nn.Linear(n_neurons, 15)
-        self.dec_joint_conf = nn.Linear(n_neurons, 12)
+        self.dec_joint_conf = nn.Linear(n_neurons, cfg["n_hand_joints"])
         self.dec_rot = nn.Linear(n_neurons, 6)
         self.dec_transl = nn.Linear(n_neurons, 3)
 
