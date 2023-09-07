@@ -9,7 +9,6 @@ import argparse
 
 from FFHNet.config.config import Config
 from FFHNet.data.bps_encoder import BPSEncoder
-from FFHNet.data.ffhcollision_data_set import FFHCollDetrDataSet
 from FFHNet.data.ffhevaluator_data_set import (FFHEvaluatorDataSet,
                                                FFHEvaluatorPCDDataSet)
 from FFHNet.data.ffhgenerator_data_set import FFHGeneratorDataSet
@@ -114,13 +113,6 @@ def train():
                                       shuffle=True,
                                       drop_last=True,
                                       num_workers=cfg["num_threads"])
-    if cfg["train_ffhcolldetr"]:
-        dset_eva = FFHCollDetrDataSet(cfg)
-        train_loader_col = DataLoader(dset_eva,
-                                      batch_size=cfg["batch_size"],
-                                      shuffle=True,
-                                      drop_last=True,
-                                      num_workers=cfg["num_threads"])
 
     writer = Writer(cfg)
 
@@ -130,8 +122,6 @@ def train():
     #         ffhgan.load_ffhevaluator(cfg["load_epoch"])
     #     if cfg["train_ffhgenerator"]:
     #         ffhgan.load_ffhgenerator(cfg["load_epoch"])
-    #     if cfg["train_ffhcolldetr"]:
-    #         ffhgan.load_ffhcolldetr(cfg["load_epoch"])
     #     start_epoch = cfg["load_epoch"] + 1
     # else:
     #     start_epoch = 1

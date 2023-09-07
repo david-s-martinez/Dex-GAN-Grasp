@@ -9,7 +9,7 @@ from FFHNet.utils import utils
 import FFHNet.models.losses as losses
 import FFHNet.models.networks as networks
 from FFHNet.models.pointnet import PointNetEvaluator, PointNetGenerator
-from FFHNet.models.networks import FFHGenerator,FFHEvaluator, FFHCollDetr, FFHCollDetr
+from FFHNet.models.networks import FFHGenerator,FFHEvaluator
 
 def define_losses(loss_type_recon):
     """ This will return the loss functions. The KL divergence is fixed, but for the reconstruction loss
@@ -29,33 +29,25 @@ def define_losses(loss_type_recon):
 def build_ffhnet(cfg, device, is_train):
     gen = FFHGenerator(cfg)
     eva = FFHEvaluator(cfg)
-    col = FFHCollDetr(cfg)
-    # if import collision model according to config param
-    # str = 'col'
-    # exec("globals()[str] = %s" % cfg["model_name"]+'(cfg)')
+
     if torch.cuda.is_available:
         gen.to(device)
         eva.to(device)
-        col.to(device)
     if is_train:
         init_net(gen)
         init_net(eva)
-        init_net(col)
-    return gen, eva, col
+    return gen, eva
 
 def build_pointnet(cfg,device,is_train):
     gen = PointNetGenerator(cfg)
     eva = PointNetEvaluator(cfg)
-    col = FFHCollDetr(cfg)
     if torch.cuda.is_available:
         gen.to(device)
         eva.to(device)
-        col.to(device)
     if is_train:
         init_net(gen)
         init_net(eva)
-        init_net(col)
-    return gen, eva, col
+    return gen, eva
 
 def init_net(net):
     init_type = net.cfg["weight_init_type"]
@@ -101,9 +93,9 @@ class FFHNet(object):
 
         # model, optimizer, scheduler_ffhgenerator, losses
         if cfg["model"] == "ffhnet":
-            self.FFHGenerator, self.FFHEvaluator, self.FFHCollDetr = build_ffhnet(cfg, self.device, is_train=self.is_train)
+            self.FFHGenerator, self.FFHEvaluator = build_ffhnet(cfg, self.device, is_train=self.is_train)
         elif cfg["model"] == "pointnet":
-            self.FFHGenerator, self.FFHEvaluator, self.FFHCollDetr = build_pointnet(cfg, self.device, is_train=self.is_train)
+            self.FFHGenerator, self.FFHEvaluator = build_pointnet(cfg, self.device, is_train=self.is_train)
         else:
             raise ValueError('Wrong configure model name of', cfg["model"])
 
@@ -115,7 +107,6 @@ class FFHNet(object):
             self.conf_coef = 10.
             self.train_ffhgenerator = cfg["train_ffhgenerator"]
             self.train_ffhevaluator = cfg["train_ffhevaluator"]
-            self.train_ffhcolldetr = cfg["train_ffhcolldetr"]
             self.optim_ffhgenerator = torch.optim.Adam(self.FFHGenerator.parameters(),
                                                        lr=cfg["lr"],
                                                        betas=(cfg["beta1"], 0.999),
@@ -124,16 +115,11 @@ class FFHNet(object):
                                                        lr=cfg["lr"],
                                                        betas=(cfg["beta1"], 0.999),
                                                        weight_decay=cfg["weight_decay"])
-            self.optim_ffhcolldetr = torch.optim.Adam(self.FFHCollDetr.parameters(),
-                                                      lr=cfg["lr"],
-                                                      betas=(cfg["beta1"], 0.999),
-                                                      weight_decay=cfg["weight_decay"])
+
             self.scheduler_ffhgenerator = networks.get_scheduler(self.optim_ffhgenerator, cfg)
             self.scheduler_ffhevaluator = networks.get_scheduler(self.optim_ffhevaluator, cfg)
-            self.scheduler_ffhcolldetr = networks.get_scheduler(self.optim_ffhcolldetr, cfg)
             self.estop_ffhgenerator = EarlyStopping()
             self.estop_ffhevaluator = EarlyStopping()
-            self.estop_ffhcolldetr = EarlyStopping()
 
         self.kl_loss, self.rec_pose_loss = define_losses('transl_rot_6D_l2')
         self.L2_loss = torch.nn.MSELoss(reduction='mean')
@@ -145,7 +131,6 @@ class FFHNet(object):
         if len(cfg["gpu_ids"]) > 1:
             self.FFHGenerator = torch.nn.DataParallel(self.FFHGenerator, device_ids=cfg["gpu_ids"])
             self.FFHEvaluator = torch.nn.DataParallel(self.FFHEvaluator, device_ids=cfg["gpu_ids"])
-            self.FFHCollDetr = torch.nn.DataParallel(self.FFHCollDetr, device_ids=cfg["gpu_ids"])
 
         # count params
         ffhgenerator_vars = [var[1] for var in self.FFHGenerator.named_parameters()]
@@ -154,9 +139,6 @@ class FFHNet(object):
         ffhevaluator_vars = [var[1] for var in self.FFHEvaluator.named_parameters()]
         ffhevaluator_n_params = sum(p.numel() for p in ffhevaluator_vars if p.requires_grad)
         print("The ffhevaluator has {:2.2f} parms".format(ffhevaluator_n_params))
-        ffhcolldetr_vars = [var[1] for var in self.FFHCollDetr.named_parameters()]
-        ffhcolldetr_n_params = sum(p.numel() for p in ffhcolldetr_vars if p.requires_grad)
-        print("The ffhcolldetr has {:2.2f} parms".format(ffhcolldetr_n_params))
         # TODO count flops as well
         self.file_path = os.path.dirname(os.path.abspath(__file__))
         self.logit_thresh = 0.5
@@ -165,13 +147,6 @@ class FFHNet(object):
         """Computes the binary cross entropy loss between predicted success-label and true success"""
         bce_loss_val = self.bce_weight * \
             self.BCE_loss(pred_success_p, self.FFHEvaluator.gt_label)
-        loss_dict = {'total_loss_eva': bce_loss_val, 'bce_loss': bce_loss_val}
-        return bce_loss_val, loss_dict
-
-    def compute_loss_ffhcolldetr(self, pred_success_p):
-        """Computes the binary cross entropy loss between predicted success-label and true success"""
-        bce_loss_val = self.bce_weight * \
-            self.BCE_loss(pred_success_p, self.FFHCollDetr.gt_label)
         loss_dict = {'total_loss_eva': bce_loss_val, 'bce_loss': bce_loss_val}
         return bce_loss_val, loss_dict
 
@@ -220,23 +195,6 @@ class FFHNet(object):
 
         return pos_acc, neg_acc, pred_label_np, gt_label_np
 
-    def eval_ffhcolldetr_accuracy(self, data, thresh=False):
-        if thresh is False:
-            thresh = self.logit_thresh
-        logits = self.FFHCollDetr(data)  # network outputs logits
-
-        # Turn the output logits into class labels. logits > thresh = 1, < thresh = 0
-        pred_label = utils.class_labels_from_logits(logits, thresh)
-
-        # Compute the accuracy for positive and negative class
-        pos_acc, neg_acc, acc = self.compute_eva_accuracy(pred_label, self.FFHCollDetr.gt_label)
-
-        # Turn the raw predictions into np arrays and return for confusion matrix
-        pred_label_np = pred_label.detach().cpu().numpy()
-        gt_label_np = self.FFHCollDetr.gt_label.detach().cpu().numpy()
-
-        return pos_acc, neg_acc, pred_label_np, gt_label_np
-
     def eval_ffhevaluator_loss(self, data):
         self.FFHEvaluator.eval()
 
@@ -245,15 +203,6 @@ class FFHNet(object):
             _, loss_dict_ffhevaluator = self.compute_loss_ffhevaluator(out)
 
         return loss_dict_ffhevaluator
-
-    def eval_ffhcolldetr_loss(self, data):
-        self.FFHCollDetr.eval()
-
-        with torch.no_grad():
-            out = self.FFHCollDetr(data)
-            _, loss_dict_ffhcolldetr = self.compute_loss_ffhcolldetr(out)
-
-        return loss_dict_ffhcolldetr
 
     def eval_ffhgenerator_loss(self, data):
         self.FFHGenerator.eval()
@@ -289,41 +238,6 @@ class FFHNet(object):
             p_success = p_success.cpu().detach().numpy()
 
         return p_success
-
-    def filter_grasps_in_collision(self, bps, grasps, thresh=0.5, return_arr=True):
-        """Takes in grasps generated by FFHGenerator, bps encoding of an object and removes grasps with predicted
-        collision probability less than thresh.
-
-        Args:
-            bps (np array): Bps encoding of the object. n*4096
-            grasps (dict): Dict holding the grasp information. keys: transl n*3, rot_matrix n*3*3, joint_conf n*15
-            thresh (float, optional): Reject grasps with lower success p than this. Defaults to 0.5.
-
-        """
-        start = time.time()
-        n_samples = grasps['rot_matrix'].shape[0]
-        if len(bps.shape) > 1:
-            bps = bps.squeeze()
-        bps = np.tile(bps, (n_samples, 1))
-
-        grasps['bps_object'] = bps
-        grasps_t = utils.dict_to_tensor(grasps, device=self.device, dtype=self.dtype)
-
-        p_noncollision = self.FFHCollDetr(grasps_t).squeeze()
-        print(p_noncollision)
-        print(p_noncollision.min())
-        print(p_noncollision.max())
-        filt_grasps = {}
-        for k, v in grasps_t.items():
-            filt_grasps[k] = v[p_noncollision > thresh]
-            if return_arr:
-                filt_grasps[k] = filt_grasps[k].cpu().detach().numpy()
-        print("in total grasps:",n_samples)
-        print("after filtering with collision",len(filt_grasps))
-
-        #print("Filtering took: %.4f" % (time.time() - start))]
-
-        return filt_grasps
 
     def filter_grasps(self, bps, grasps, thresh=0.5, return_arr=True):
         """ Takes in grasps generated by the FFHGenerator for a bps encoding of an object and removes every grasp#
@@ -455,7 +369,6 @@ class FFHNet(object):
     def load_ffhnet(self, epoch):
         self.load_ffhevaluator(epoch)
         self.load_ffhgenerator(epoch)
-        self.load_ffhcolldetr(epoch)
 
     def load_ffhevaluator(self, epoch, load_path=None):
         """Load ffhevaluator from disk and set to eval or train mode.
@@ -479,29 +392,6 @@ class FFHNet(object):
             self.FFHEvaluator.train()
         else:
             self.FFHEvaluator.eval()
-
-    def load_ffhcolldetr(self, epoch, load_path=None):
-        """Load ffhcolldetr from disk and set to eval or train mode.
-        """
-        if epoch == -1:
-            path = os.path.split(os.path.split(self.file_path)[0])[0]
-            dirs = sorted(os.path.listdir(os.path.join(path, 'checkpoints')))
-            load_path = os.path.join(path, dirs[-1], str(epoch) + '_col_net.pt')
-        else:
-            if load_path is None:
-                load_path = self.cfg["load_path"]
-            load_path = os.path.join(load_path, str(epoch) + '_col_net.pt')
-
-        ckpt = torch.load(load_path, map_location=self.device)
-        self.FFHCollDetr.load_state_dict(ckpt['ffhcolldetr_state_dict'])
-
-        if self.cfg["is_train"]:
-            self.optim_ffhcolldetr.load_state_dict(ckpt['optim_ffhcolldetr_state_dict'])
-            self.scheduler_ffhcolldetr.load_state_dict(ckpt['scheduler_ffhcolldetr_state_dict'])
-            self.cfg["load_epoch"] = ckpt['epoch']
-            self.FFHCollDetr.train()
-        else:
-            self.FFHCollDetr.eval()
 
     def load_ffhgenerator(self, epoch, load_path=None):
         """Load ffhgenerator from disk and set to eval or train mode
@@ -593,29 +483,6 @@ class FFHNet(object):
         if torch.cuda.is_available():
             self.FFHEvaluator.to(torch.device('cuda:{}'.format(self.cfg["gpu_ids"][0])))
 
-    def save_ffhcolldetr(self, net_name, epoch):
-        """ Save ffhcolldetr to disk
-
-        Args:
-            net_name (str): The name of the model.
-            epoch (int): Current epoch.
-        """
-        save_path = os.path.join(self.cfg["save_dir"], net_name + '_col_net.pt')
-        if len(self.cfg["gpu_ids"]) > 1:
-            ffhcolldetr_state_dict = self.FFHCollDetr.module.cpu().state_dict()
-        else:
-            ffhcolldetr_state_dict = self.FFHCollDetr.cpu().state_dict()
-        torch.save(
-            {
-                'epoch': epoch,
-                'ffhcolldetr_state_dict': ffhcolldetr_state_dict,
-                'optim_ffhcolldetr_state_dict': self.optim_ffhcolldetr.state_dict(),
-                'scheduler_ffhcolldetr_state_dict': self.scheduler_ffhcolldetr.state_dict(),
-            }, save_path, _use_new_zipfile_serialization=False)
-
-        if torch.cuda.is_available():
-            self.FFHCollDetr.to(torch.device('cuda:{}'.format(self.cfg["gpu_ids"][0])))
-
     def save_ffhgenerator(self, net_name, epoch):
         """ Save ffhgenerator to disk
 
@@ -651,9 +518,6 @@ class FFHNet(object):
         if self.train_ffhgenerator:
             if self.estop_ffhgenerator(eval_loss_dict['total_loss_gen']):
                 self.train_ffhgenerator = False
-        if self.train_ffhcolldetr:
-            if self.estop_ffhcolldetr(eval_loss_dict['total_loss_col']):
-                self.train_ffhcolldetr = False
 
     def update_learning_rate(self, eval_loss_dict):
         """update learning rate (called once every epoch)"""
@@ -665,11 +529,6 @@ class FFHNet(object):
         if self.train_ffhgenerator:
             self.scheduler_ffhgenerator.step(eval_loss_dict['total_loss_gen'])
             lr_gen = self.optim_ffhgenerator.param_groups[0]['lr']
-            print('learning rate generator = %.7f' % lr_gen)
-
-        if self.train_ffhcolldetr:
-            self.scheduler_ffhcolldetr.step(eval_loss_dict['total_loss_col'])
-            lr_gen = self.optim_ffhcolldetr.param_groups[0]['lr']
             print('learning rate generator = %.7f' % lr_gen)
 
     def update_ffhevaluator(self, data):
@@ -710,24 +569,6 @@ class FFHNet(object):
         # Return the loss
         return loss_dict_ffhgenerator
 
-    def update_ffhcolldetr(self, data):
-        # Make sure net is in train mode
-        self.FFHCollDetr.train()
-
-        # Run forward pass of ffhcolldetr and predict grasp success
-        out = self.FFHCollDetr(data)
-
-        # Compute loss based on reconstructed data
-        total_loss_ffhcolldetr, loss_dict_ffhcolldetr = self.compute_loss_ffhcolldetr(out)
-        # Zero gradients, backprop new loss gradient, run one step
-        self.optim_ffhcolldetr.zero_grad()
-        total_loss_ffhcolldetr.backward()
-        self.optim_ffhcolldetr.step()
-
-        # Return loss
-        return loss_dict_ffhcolldetr
-
-
 if __name__ == '__main__':
     # test sampling
     path2pcd_enc = '/home/vm/pcd_enc.npy'
@@ -743,6 +584,3 @@ if __name__ == '__main__':
     # bps = np.load(path2pcd_enc)
     # grasps = ffhnet.generate_grasps(bps, 20, return_arr=True)
     # ffhnet.filter_grasps(bps, grasps, thresh=0., return_arr=True)
-
-    ffhnet.load_ffhcolldetr(0)
-    ffhnet.save_ffhcolldetr(str(8),8)

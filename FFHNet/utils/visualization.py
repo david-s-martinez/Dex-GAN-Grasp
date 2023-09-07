@@ -838,57 +838,57 @@ def plot_filtered_grasps_per_threshold(path_to_csv):
     fig.savefig(save_path)
 
 
-def plot_ffhevaluator_accuracy_curve(acc_type, exp_type='layers'):
-    plt.style.use(['science', 'grid'])
-    matplotlib.rcParams.update({'font.size': 12})
-    if acc_type == 'mean':
-        n = 'Mean'
-    elif acc_type == 'positive':
-        n = 'Positive'
-    elif acc_type == 'negative':
-        n = 'Negative'
-    pparam = dict(title='Evaluation Accuracy: ' + n,
-                  xlabel='Epoch', ylabel='Accuracy')
+# def plot_ffhevaluator_accuracy_curve(acc_type, exp_type='layers'):
+#     plt.style.use(['science', 'grid'])
+#     matplotlib.rcParams.update({'font.size': 12})
+#     if acc_type == 'mean':
+#         n = 'Mean'
+#     elif acc_type == 'positive':
+#         n = 'Positive'
+#     elif acc_type == 'negative':
+#         n = 'Negative'
+#     pparam = dict(title='Evaluation Accuracy: ' + n,
+#                   xlabel='Epoch', ylabel='Accuracy')
 
-    # Choose experiments
-    assert (exp_type == 'layers' or exp_type == 'neurons')
-    accs_exps = exps[exp_type]
+#     # Choose experiments
+#     assert (exp_type == 'layers' or exp_type == 'neurons')
+#     accs_exps = exps[exp_type]
 
-    epochs = [0, 5, 10, 15, 20, 25, 30, 35]
+#     epochs = [0, 5, 10, 15, 20, 25, 30, 35]
 
-    mean_accs = []
-    mean_acc = []
-    keys = accs_exps.keys() if isinstance(accs_exps, collections.OrderedDict) else sorted(
-        accs_exps.keys())
-    for key in keys:
-        mean_acc = []
-        (acc_pos, acc_neg) = accs_exps[key]
-        for (p, n) in zip(acc_pos, acc_neg):
-            if acc_type == 'mean':
-                mean_acc.append((p + n) / 2.)
-            elif acc_type == 'positive':
-                mean_acc.append(p)
-            elif acc_type == 'negative':
-                mean_acc.append(n)
-        mean_accs.append(mean_acc)
+#     mean_accs = []
+#     mean_acc = []
+#     keys = accs_exps.keys() if isinstance(accs_exps, collections.OrderedDict) else sorted(
+#         accs_exps.keys())
+#     for key in keys:
+#         mean_acc = []
+#         (acc_pos, acc_neg) = accs_exps[key]
+#         for (p, n) in zip(acc_pos, acc_neg):
+#             if acc_type == 'mean':
+#                 mean_acc.append((p + n) / 2.)
+#             elif acc_type == 'positive':
+#                 mean_acc.append(p)
+#             elif acc_type == 'negative':
+#                 mean_acc.append(n)
+#         mean_accs.append(mean_acc)
 
-    fig, ax = plt.subplots()
-    for mean_acc, label in zip(mean_accs, keys):
-        ax.plot(epochs, mean_acc, label=label)
-    ax.legend()
-    ax.autoscale(tight=True)
-    ax.set(**pparam)
-    ax.set_ylim([0.6, 0.95])
-    save_path = os.path.join('figures/ffheva_exps', exp_type,
-                             exp_type + '_eva_accuracy_' + acc_type + '.pdf')
-    fig.savefig(save_path)
+#     fig, ax = plt.subplots()
+#     for mean_acc, label in zip(mean_accs, keys):
+#         ax.plot(epochs, mean_acc, label=label)
+#     ax.legend()
+#     ax.autoscale(tight=True)
+#     ax.set(**pparam)
+#     ax.set_ylim([0.6, 0.95])
+#     save_path = os.path.join('figures/ffheva_exps', exp_type,
+#                              exp_type + '_eva_accuracy_' + acc_type + '.pdf')
+#     fig.savefig(save_path)
 
-    save_path_thesis = '/home/vm/Documents/thesis/master_thesis/figures/chapter_05/eva_training'
-    save_path = os.path.join(save_path_thesis, exp_type,
-                             exp_type + '_eva_accuracy_' + acc_type + '.pdf')
-    fig.savefig(save_path)
+#     save_path_thesis = '/home/vm/Documents/thesis/master_thesis/figures/chapter_05/eva_training'
+#     save_path = os.path.join(save_path_thesis, exp_type,
+#                              exp_type + '_eva_accuracy_' + acc_type + '.pdf')
+#     fig.savefig(save_path)
 
-    plt.show()
+#     plt.show()
 
 
 def plot_ffhevaluator_training_curve(log_path):

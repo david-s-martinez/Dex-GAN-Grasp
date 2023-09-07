@@ -9,7 +9,6 @@ import argparse
 
 from FFHNet.config.config import Config
 from FFHNet.data.bps_encoder import BPSEncoder
-from FFHNet.data.ffhcollision_data_set import FFHCollDetrDataSet
 from FFHNet.data.ffhevaluator_data_set import (FFHEvaluatorDataSet,
                                                FFHEvaluatorPCDDataSet)
 from FFHNet.data.ffhgenerator_data_set import FFHGeneratorDataSet
@@ -72,11 +71,6 @@ def run_eval(cfg, curr_epoch, ffhnet=None, epoch=-1, name=""):
         eval_loss_dict_gen = run_eval_gen(ffhnet, cfg)
         loss_dict.update(eval_loss_dict_gen)
 
-    if cfg["eval_ffhcolldetr"]:
-        dset = FFHCollDetrDataSet(cfg,eval=True)
-        col_loader = DataLoader(dset, batch_size=cfg["batch_size"], shuffle=False)
-        eval_loss_dict_col = run_eval_col(ffhnet, col_loader, curr_epoch, cfg["eval_dir"])
-        loss_dict.update(eval_loss_dict_col)
     return loss_dict
 
 
@@ -111,39 +105,6 @@ def run_eval_eva(ffhnet, dataloader, curr_epoch, eval_dir):
     np.save(os.path.join(eval_dir, str(curr_epoch) + '_pred_labels.npy'), pred_labels)
 
     return mean_losses
-
-def run_eval_col(ffhnet, dataloader, curr_epoch, eval_dir):
-    print('Running eval for FFHColdetr.')
-
-    mean_losses = {
-        'total_loss_eva': 0,
-        'pos_acc': 0,
-        'neg_acc': 0,
-    }
-
-    pred_labels = np.array([])
-    gt_labels = np.array([])
-
-    for i, data in enumerate(dataloader):
-        loss_dict = ffhnet.eval_ffhcolldetr_loss(data)
-        pos_acc, neg_acc, pred_label, gt_label = ffhnet.eval_ffhcolldetr_accuracy(data)
-
-        mean_losses['total_loss_eva'] += loss_dict['total_loss_eva'].detach().cpu().numpy()
-        mean_losses['pos_acc'] += pos_acc
-        mean_losses['neg_acc'] += neg_acc
-
-        pred_labels = np.append(pred_labels, pred_label)
-        gt_labels = np.append(gt_labels, gt_label)
-
-    for k, _ in mean_losses.items():
-        mean_losses[k] /= (i + 1)
-
-    # save the labels
-    np.save(os.path.join(eval_dir, str(curr_epoch) + '_gt_labels.npy'), gt_labels)
-    np.save(os.path.join(eval_dir, str(curr_epoch) + '_pred_labels.npy'), pred_labels)
-
-    return mean_losses
-
 
 def run_eval_gen(ffhnet, cfg):
     print('Running eval for FFHGenerator')
@@ -206,46 +167,6 @@ def eval_eva_accuracy(load_epoch_eva, load_path, show_confusion_matrix=False):
                                             normalize=True)
 
     return mean_accuracy, gt_labels, pred_labels
-
-
-def eval_col_accuracy(cfg, load_epoch_eva, load_path, thresh=0.5, show_confusion_matrix=False):
-
-    ffhnet = FFHNet(cfg)
-    ffhnet.load_ffhcolldetr(load_path=load_path, epoch=load_epoch_eva)
-    dset = FFHCollDetrDataSet(cfg,eval=True)
-    eval_loader = DataLoader(dset, batch_size=cfg["batch_size"], shuffle=False)
-
-    mean_accuracy = {
-        'pos_acc': 0,
-        'neg_acc': 0,
-    }
-
-    pred_labels = np.array([])
-    gt_labels = np.array([])
-    print(len(eval_loader))
-    for i, data in enumerate(eval_loader):
-        #print(" %.2f percent  completed." % (100 * i * cfg["batch_size"] / len(dset)))
-        pos_acc, neg_acc, pred_label, gt_label = ffhnet.eval_ffhcolldetr_accuracy(data,thresh)
-
-        mean_accuracy['pos_acc'] += pos_acc
-        mean_accuracy['neg_acc'] += neg_acc
-
-        pred_labels = np.append(pred_labels, pred_label)
-        gt_labels = np.append(gt_labels, gt_label)
-
-    print("\nMean accuracy in epoch: " + str(load_epoch_eva))
-    for k, _ in mean_accuracy.items():
-        mean_accuracy[k] /= (i + 1)
-        print(k, mean_accuracy[k])
-
-    if show_confusion_matrix:
-        visualization.plot_confusion_matrix(1 - gt_labels,
-                                            1 - pred_labels,
-                                            classes=['success', 'failure'],
-                                            normalize=True)
-
-    return mean_accuracy, gt_labels, pred_labels
-
 
 def eval_grasp_refinement(load_epoch_eva, method='gradient'):
     config = Config()

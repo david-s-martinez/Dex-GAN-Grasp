@@ -7,7 +7,6 @@ from torch.utils.data import DataLoader
 
 from eval import run_eval
 from FFHNet.config.config import Config
-from FFHNet.data.ffhcollision_data_set import FFHCollDetrDataSet
 from FFHNet.data.ffhevaluator_data_set import FFHEvaluatorDataSet, FFHEvaluatorPCDDataSet
 from FFHNet.data.ffhgenerator_data_set import FFHGeneratorDataSet
 from FFHNet.models.ffhnet import FFHNet
@@ -48,13 +47,6 @@ def main():
                                       shuffle=True,
                                       drop_last=True,
                                       num_workers=cfg["num_threads"])
-    if cfg["train_ffhcolldetr"]:
-        dset_eva = FFHCollDetrDataSet(cfg)
-        train_loader_col = DataLoader(dset_eva,
-                                      batch_size=cfg["batch_size"],
-                                      shuffle=True,
-                                      drop_last=True,
-                                      num_workers=cfg["num_threads"])
 
     writer = Writer(cfg)
 
@@ -64,8 +56,6 @@ def main():
             ffhnet.load_ffhevaluator(cfg["load_epoch"])
         if cfg["train_ffhgenerator"]:
             ffhnet.load_ffhgenerator(cfg["load_epoch"])
-        if cfg["train_ffhcolldetr"]:
-            ffhnet.load_ffhcolldetr(cfg["load_epoch"])
         start_epoch = cfg["load_epoch"] + 1
     else:
         start_epoch = 1
@@ -129,31 +119,6 @@ def main():
 
                 prev_iter_end = time.time()
 
-        # === Collision Detector ===
-        if ffhnet.train_ffhcolldetr:
-            # Initialize epoch / iter info
-            prev_iter_end = time.time()
-            epoch_iter = 0
-
-            # Evaluator training loop
-            for i, data in enumerate(train_loader_col):
-                cur_iter_start = time.time()
-                total_steps += cfg["batch_size"]
-                epoch_iter += cfg["batch_size"]
-
-                # Update model one step, get losses
-                loss_dict = ffhnet.update_ffhcolldetr(data)
-
-                # Log loss
-                if total_steps % cfg["print_freq"] == 0:
-                    t_load = cur_iter_start - prev_iter_end  # time for data loading
-                    t_total = (time.time() - epoch_start) // 60
-                    writer.print_current_train_loss(epoch, epoch_iter, loss_dict, t_total, t_load)
-                    writer.plot_train_loss(loss_dict, epoch, epoch_iter, len(dset_eva))
-
-                prev_iter_end = time.time()
-
-                # End of data loading iter
         # === End of data loading for gen and eva ===
         # Save model after each epoch
         if epoch % cfg["save_freq"] == 0:
@@ -162,8 +127,6 @@ def main():
                 ffhnet.save_ffhgenerator(str(epoch), epoch)
             if ffhnet.train_ffhevaluator:
                 ffhnet.save_ffhevaluator(str(epoch), epoch)
-            if ffhnet.train_ffhcolldetr:
-                ffhnet.save_ffhcolldetr(str(epoch), epoch)
 
         # Some interesting prints
         epoch_diff = time.time() - epoch_start
