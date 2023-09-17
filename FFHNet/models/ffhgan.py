@@ -82,7 +82,7 @@ class FFHGANet(object):
         # model, optimizer, scheduler_ffhgenerator, losses
         if cfg["model"] == "ffhnet":
             self.FFHGAN, self.FFHEvaluator = build_ffhnet(cfg, self.device, is_train=self.is_train)
-        if cfg["model"] == "ffhgan":
+        elif cfg["model"] == "ffhgan":
             self.FFHGAN, self.FFHEvaluator = build_ffhnet(cfg, self.device, is_train=self.is_train)
         else:
             raise ValueError('Wrong configure model name of', cfg["model"])
@@ -209,7 +209,6 @@ class FFHGANet(object):
         transl_loss_val, rot_loss_val = self.rec_pose_loss(fake_data, gt_transl_rot_matrix,
                                                            self.L2_loss, self.device)
         transl_loss_val, rot_loss_val = transl_loss_val, rot_loss_val
-        print(fake_data['joint_conf'].shape, real_data['joint_conf'].shape)
         # Loss on joint angles
         conf_loss_val = self.L2_loss(
             fake_data['joint_conf'].to(self.FFHGAN.device).float(), 
@@ -229,7 +228,6 @@ class FFHGANet(object):
             'conf_loss': self.conf_coef * conf_loss_val
         }
         total_loss = gen_loss_fake + (loss_dict['transl_loss'] + loss_dict['rot_loss'] + loss_dict['conf_loss'])
-        print(total_loss.dtype)
         loss_dict["total_loss_gen"] = total_loss
 
         return total_loss, loss_dict
@@ -686,6 +684,6 @@ class FFHGANet(object):
         self.optim_ffhgan_generator.zero_grad()
         total_loss_gen.backward()
         self.optim_ffhgan_generator.step()
-
         # Return the loss
-        return loss_dict_disc, loss_dict_gen
+        loss_dict = loss_dict_disc | loss_dict_gen
+        return loss_dict

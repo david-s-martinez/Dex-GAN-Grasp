@@ -60,14 +60,12 @@ class Generator(nn.Module):
                  cfg,
                  n_neurons=512,
                  in_bps=4096,
-                 in_pose=9 + 3,
                  dtype=torch.float32,
                  **kwargs):
 
         super(Generator, self).__init__()
 
         self.cfg = cfg
-        in_pose += cfg["n_hand_joints"]
         self.latentD = cfg["latentD"]
 
         self.gen_bn1 = nn.BatchNorm1d(in_bps)
@@ -107,16 +105,15 @@ class Generator(nn.Module):
 class Discriminator(nn.Module):
     def __init__(self,
                  cfg,
+                 in_pose,
                  n_neurons=512,
                  in_bps=4096,
-                 in_pose=9 + 3,
                  dtype=torch.float32,
                  **kwargs):
 
         super(Discriminator, self).__init__()
 
         self.cfg = cfg
-        in_pose += cfg["n_hand_joints"]
         self.disc_bn1 = nn.BatchNorm1d(in_bps + in_pose)
         self.disc_rb1 = ResBlock(in_bps + in_pose, n_neurons)
         # why input in_bps again here?
@@ -180,9 +177,9 @@ class FFHGAN(nn.Module):
         self.latentD = cfg["latentD"]
         self.discriminator = Discriminator(
             cfg,
+            in_pose,
             n_neurons,
             in_bps,
-            in_pose,
             dtype)
         self.discriminator.to(self.device)
 
@@ -190,7 +187,6 @@ class FFHGAN(nn.Module):
             cfg,
             n_neurons,
             in_bps,
-            in_pose,
             dtype)
         self.generator.to(self.device)
         self.discriminator.device = self.device
