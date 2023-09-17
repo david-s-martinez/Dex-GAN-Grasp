@@ -676,14 +676,6 @@ class FFHGANet(object):
         fake_joint_conf = y_fake["joint_conf"]
         y_fake["rot_matrix"] = utils.rot_matrix_from_ortho6d(y_fake["rot_6D"])
 
-        fake_data = {
-            "bps_object": real_data["bps_object"],
-            "rot_matrix": fake_rot_6D,
-            # "rot_matrix": y_fake["rot_matrix"],
-            "rot_6D": fake_rot_6D,
-            "transl": fake_transl,
-            "joint_conf": fake_joint_conf
-        }
         fake_data_disc = {
             "bps_object": real_data["bps_object"],
             # "rot_matrix": fake_rot_6D.detach(),
@@ -704,6 +696,14 @@ class FFHGANet(object):
         self.optim_ffhgan_discriminator.step()
 
         # Train Generator
+        fake_data = {
+            "bps_object": real_data["bps_object"],
+            "rot_matrix": fake_rot_6D,
+            # "rot_matrix": y_fake["rot_matrix"],
+            "rot_6D": fake_rot_6D,
+            "transl": fake_transl,
+            "joint_conf": fake_joint_conf
+        }
         fake_data_gen = fake_data
         fake_data_gen["rot_matrix"] = y_fake["rot_matrix"]
         fake_score_gen = self.FFHGAN.discriminator(fake_data_gen)
