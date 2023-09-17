@@ -200,24 +200,25 @@ class FFHGAN(nn.Module):
 
         self.dtype = dtype
     
-    def forward(self, Zin, bps_object, real_data):
+    def forward(self, Zin, bps_object, real_data = None):
         # Generate fake data using the generator
         fake_results = self.generator(Zin, bps_object)
-        fake_rot_6D = fake_results["rot_6D"]
-        fake_transl = fake_results["transl"]
-        fake_joint_conf = fake_results["joint_conf"]
-        fake_data = {
-            "bps_object": bps_object,
-            "rot_matrix": fake_rot_6D,
-            "transl": fake_transl,
-            "joint_conf": fake_joint_conf
-        }
+        # fake_rot_6D = fake_results["rot_6D"]
+        # fake_transl = fake_results["transl"]
+        # fake_joint_conf = fake_results["joint_conf"]
+        # fake_data = {
+        #     "bps_object": bps_object,
+        #     "rot_matrix": fake_rot_6D,
+        #     "transl": fake_transl,
+        #     "joint_conf": fake_joint_conf
+        # }
 
-        # Pass both real and fake data through the discriminator
-        real_p_success = self.discriminator(real_data)
-        fake_p_success = self.discriminator(fake_data)
+        # # Pass both real and fake data through the discriminator
+        # real_p_success = self.discriminator(real_data)
+        # fake_p_success = self.discriminator(fake_data)
 
-        return fake_results, real_p_success, fake_p_success
+        # return fake_results, real_p_success, fake_p_success
+        return fake_results
 
     def generate_poses(self, bps_object, return_arr=False, seed=None, sample_uniform=False):
         """[summary]

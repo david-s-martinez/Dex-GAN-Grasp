@@ -265,6 +265,37 @@ class FFHGANet(object):
             _, loss_dict_ffhgenerator = self.compute_loss_ffhgenerator(data_rec)
 
         return loss_dict_ffhgenerator
+    
+    def eval_ffhgan_generator_loss(self, real_data):
+        self.FFHGAN.eval()
+        with torch.no_grad():
+            n_samples = real_data["bps_object"].shape[0]
+            Zgen = torch.randn((n_samples, self.FFHGAN.latentD), dtype=self.FFHGAN.dtype, device=self.FFHGAN.device)
+            # Zgen = torch.randn((n_samples, self.FFHGAN.latentD), dtype=self.FFHGAN.dtype)
+            # Run forward pass of ffhgenerator and reconstruct the data
+            y_fake = self.FFHGAN.generator(Zgen, real_data["bps_object"].to(self.FFHGAN.device))
+            fake_rot_6D = y_fake["rot_6D"]
+            fake_transl = y_fake["transl"]
+            fake_joint_conf = y_fake["joint_conf"]
+            y_fake["rot_matrix"] = utils.rot_matrix_from_ortho6d(y_fake["rot_6D"])
+
+            fake_data = {
+                "bps_object": real_data["bps_object"],
+                "rot_matrix": fake_rot_6D,
+                # "rot_matrix": y_fake["rot_matrix"],
+                "rot_6D": fake_rot_6D,
+                "transl": fake_transl,
+                "joint_conf": fake_joint_conf
+            }
+            # Train Generator
+            fake_data_gen = fake_data
+            fake_data_gen["rot_matrix"] = y_fake["rot_matrix"]
+            fake_score_gen = self.FFHGAN.discriminator(fake_data_gen)
+            # Compute loss based on reconstructed data
+            real_data["rot_matrix"] = real_data["rot_matrix"].view(real_data["bps_object"].shape[0], -1)
+            _, loss_dict_ffhgenerator = self.compute_loss_ffhgan_generator(real_data, fake_data, fake_score_gen)
+            
+        return loss_dict_ffhgenerator
 
     def evaluate_grasps(self, bps, grasps, thresh=0.5, return_arr=True):
         """Receives n grasps together with bps encodings of queried object and evaluates the probability of success.

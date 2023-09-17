@@ -5,7 +5,7 @@ import time
 import torch
 from torch.utils.data import DataLoader
 
-from eval import run_eval
+from eval import run_eval_gan
 from FFHNet.config.config import Config
 from FFHNet.data.ffhevaluator_data_set import FFHEvaluatorDataSet, FFHEvaluatorPCDDataSet
 from FFHNet.data.ffhgenerator_data_set import FFHGeneratorDataSet
@@ -127,12 +127,12 @@ def main():
         epoch_diff = time.time() - epoch_start
         print('End of epoch %d / %d \t Time taken: %.3f min' %
               (epoch, cfg["num_epochs"], epoch_diff / 60))
-        # TODO: implement eval for gan
-        # if epoch % cfg["save_freq"] == 0:
-        #     # Eval model on eval dataset
-        #     eval_loss_dict = run_eval(cfg, epoch, ffhnet=ffhgan)
-        #     writer.print_current_eval_loss(epoch, eval_loss_dict)
-        #     writer.plot_eval_loss(eval_loss_dict, epoch)
+        
+        if epoch % cfg["save_freq"] == 0:
+            # Eval model on eval dataset
+            eval_loss_dict = run_eval_gan(cfg, epoch, ffhgan=ffhgan)
+            writer.print_current_eval_loss(epoch, eval_loss_dict)
+            writer.plot_eval_loss(eval_loss_dict, epoch)
 
         # Plot model weights and losses
         writer.plot_model_weights(ffhgan, epoch)
