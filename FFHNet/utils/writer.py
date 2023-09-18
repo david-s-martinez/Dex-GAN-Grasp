@@ -94,6 +94,15 @@ class Writer:
             if model.train_ffhevaluator and self.ts_board:
                 for name, param in model.FFHEvaluator.named_parameters():
                     self.ts_board.add_histogram('eva_' + name, param.clone().cpu().data.numpy(), epoch)
+    def plot_model_weights_gan(self, model, epoch):
+        if hasattr(model, "train_ffhgenerator"):
+            if model.train_ffhgenerator and self.ts_board:
+                for name, param in model.FFHGAN.named_parameters():
+                    self.ts_board.add_histogram('gen_' + name, param.clone().cpu().data.numpy(), epoch)
+        if hasattr(model, "train_ffhevaluator"):
+            if model.train_ffhevaluator and self.ts_board:
+                for name, param in model.FFHEvaluator.named_parameters():
+                    self.ts_board.add_histogram('eva_' + name, param.clone().cpu().data.numpy(), epoch)
 
     def print_acc(self, epoch, acc):
         """ prints test accuracy to terminal / file """

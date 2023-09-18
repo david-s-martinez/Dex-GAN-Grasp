@@ -34,11 +34,11 @@ def eval_ffhnet_sampling_and_filtering_real(config_path,
                                             show_individual_grasps=False):
     config = Config(config_path)
     cfg = config.parse()
-    ffhgan = FFHGAN(cfg)
+    ffhgan = FFHGANet(cfg)
     print(ffhgan)
     base_data_bath = os.path.join(ROOT_PATH,'data','real_objects')
-    # ffhgan.load_ffhgenerator(epoch=load_epoch_gen, load_path=load_path_gen)
-    # ffhgan.load_ffhevaluator(epoch=load_epoch_eva, load_path=load_path_eva)
+    ffhgan.load_ffhgenerator(epoch=load_epoch_gen, load_path=load_path_gen)
+    ffhgan.load_ffhevaluator(epoch=load_epoch_eva, load_path=load_path_eva)
     path_real_objs_bps = os.path.join(base_data_bath, 'bps')
     for f_name in os.listdir(path_real_objs_bps):
         print(f_name)
@@ -55,30 +55,53 @@ def eval_ffhnet_sampling_and_filtering_real(config_path,
         # Visualize sampled distribution
         visualization.show_generated_grasp_distribution(obj_pcd_path, grasps)
 
-        # ############### Stage 3 ################
-        # # Reject grasps with low probability
-        # filtered_grasps_2 = ffhgan.filter_grasps(obj_bps, grasps, thresh=0.90)
-        # n_grasps_filt_2 = filtered_grasps_2['rot_matrix'].shape[0]
+        ############### Stage 1 ################
+        # Reject grasps with low probability
+        filtered_grasps = ffhgan.filter_grasps(obj_bps, grasps, thresh=thresh_succ)
+        n_grasps_filt = filtered_grasps['rot_matrix'].shape[0]
 
-        # print("n_grasps after filtering: %d" % n_grasps_filt_2)
-        # print("This means %.2f of grasps pass the filtering" % (n_grasps_filt_2 / n_samples))
+        print("n_grasps after filtering: %d" % n_grasps_filt)
+        print("This means %.2f of grasps pass the filtering" % (n_grasps_filt / n_samples))
 
-        # # Visulize filtered distribution
-        # visualization.show_generated_grasp_distribution(obj_pcd_path, filtered_grasps_2)
+        # Visulize filtered distribution
+        visualization.show_generated_grasp_distribution(obj_pcd_path, filtered_grasps)
 
-        # if show_individual_grasps:
-        #     for j in range(n_grasps_filt_2):
-        #         # Get the grasp sample
-        #         rot_matrix = filtered_grasps_2['rot_matrix'][j, :, :]
-        #         transl = filtered_grasps_2['transl'][j, :]
-        #         # if transl[1] > -0.1:
-        #         #     continue
-        #         joint_conf = filtered_grasps_2['joint_conf'][j, :]
-        #         palm_pose_centr = utils.hom_matrix_from_transl_rot_matrix(transl, rot_matrix)
-        #         visualization.show_grasp_and_object(obj_pcd_path, palm_pose_centr, joint_conf)
-        #         a = input('Break loop? (y/n): ')
-        #         if a == 'y':
-        #             break
+        ############### Stage 2 ################
+        # Reject grasps with low probability
+        filtered_grasps_1 = ffhgan.filter_grasps(obj_bps, grasps, thresh=0.75)
+        n_grasps_filt_1 = filtered_grasps_1['rot_matrix'].shape[0]
+
+        print("n_grasps after filtering: %d" % n_grasps_filt_1)
+        print("This means %.2f of grasps pass the filtering" % (n_grasps_filt_1 / n_samples))
+
+        # Visulize filtered distribution
+        visualization.show_generated_grasp_distribution(obj_pcd_path, filtered_grasps_1)
+
+        ############## Stage 3 ################
+        # Reject grasps with low probability
+        filtered_grasps_2 = ffhgan.filter_grasps(obj_bps, grasps, thresh=0.90)
+        n_grasps_filt_2 = filtered_grasps_2['rot_matrix'].shape[0]
+
+        print("n_grasps after filtering: %d" % n_grasps_filt_2)
+        print("This means %.2f of grasps pass the filtering" % (n_grasps_filt_2 / n_samples))
+
+        # Visulize filtered distribution
+        visualization.show_generated_grasp_distribution(obj_pcd_path, filtered_grasps_2)
+
+        if show_individual_grasps:
+            for j in range(n_grasps_filt_2):
+                # Get the grasp sample
+                rot_matrix = filtered_grasps_2['rot_matrix'][j, :, :]
+                transl = filtered_grasps_2['transl'][j, :]
+                # if transl[1] > -0.1:
+                #     continue
+                joint_conf = filtered_grasps_2['joint_conf'][j, :]
+                palm_pose_centr = utils.hom_matrix_from_transl_rot_matrix(transl, rot_matrix)
+                visualization.show_grasp_and_object(obj_pcd_path, palm_pose_centr, joint_conf,
+                                                    'meshes/robotiq_palm/robotiq-3f-gripper_articulated.urdf')
+                a = input('Break loop? (y/n): ')
+                if a == 'y':
+                    break
 def train():
     parser = argparse.ArgumentParser(
     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -160,10 +183,12 @@ def train():
             prev_iter_end = time.time()
             # End of data loading generator
 if __name__ == '__main__':
-    if False:
+    if True:
         parser = argparse.ArgumentParser()
-        parser.add_argument('--gen_path', default='models/ffhgenerator', help='path to FFHGenerator model')
-        parser.add_argument('--load_gen_epoch', type=int, default=10, help='epoch of FFHGenerator model')
+        parser.add_argument('--gen_path', default='checkpoints/2023-09-18T03_33_33_ffhgan_lr_0.0001_bs_1000', help='path to FFHGenerator model')
+        # parser.add_argument('--gen_path', default='models/ffhgenerator', help='path to FFHGenerator model')
+        parser.add_argument('--load_gen_epoch', type=int, default=6, help='epoch of FFHGenerator model')
+        # parser.add_argument('--load_gen_epoch', type=int, default=10, help='epoch of FFHGenerator model')
         parser.add_argument('--eva_path', default='models/ffhevaluator', help='path to FFHEvaluator model')
         parser.add_argument('--load_eva_epoch', type=int, default=30, help='epoch of FFHEvaluator model')
         parser.add_argument('--config', type=str, default='FFHNet/config/config_ffhgan.yaml')
@@ -178,4 +203,4 @@ if __name__ == '__main__':
 
         eval_ffhnet_sampling_and_filtering_real(config_path, load_epoch_eva, load_epoch_gen, load_path_eva,
                                                 load_path_gen, show_individual_grasps=True)
-    train()
+    # train()

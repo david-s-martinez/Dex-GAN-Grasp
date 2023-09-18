@@ -135,7 +135,7 @@ def main():
             writer.plot_eval_loss(eval_loss_dict, epoch)
 
         # Plot model weights and losses
-        writer.plot_model_weights(ffhgan, epoch)
+        writer.plot_model_weights_gan(ffhgan, epoch)
 
         # End of epoch
 
