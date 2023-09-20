@@ -235,7 +235,7 @@ class FFHGAN(nn.Module):
         self.eval()
         with torch.no_grad():
             if not sample_uniform:
-                Zgen = torch.randn((n_samples, self.latentD), dtype=self.dtype, device=self.device)
+                Zgen = torch.randn((n_samples, self.latentD), dtype=self.dtype, device=self.device) * 15
             else:
                 Zgen = 8 * torch.rand(
                     (n_samples, self.latentD), dtype=self.dtype, device=self.device) - 4
