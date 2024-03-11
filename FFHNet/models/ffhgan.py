@@ -218,7 +218,7 @@ class FFHGANet(object):
         # Generator fake loss
         gen_loss_fake = self.bce_weight * self.BCE_loss(
                                                 fake_score, 
-                                                torch.zeros_like(fake_score)
+                                                torch.ones_like(fake_score)
                                                 )
         # Put all losses in one dict and weigh them individually
         loss_dict = {
@@ -716,5 +716,7 @@ class FFHGANet(object):
         total_loss_gen.backward()
         self.optim_ffhgan_generator.step()
         # Return the loss
-        loss_dict = loss_dict_disc | loss_dict_gen
+        # loss_dict = loss_dict_disc | loss_dict_gen
+        loss_dict = loss_dict_disc.copy()
+        loss_dict.update(loss_dict_gen)
         return loss_dict
