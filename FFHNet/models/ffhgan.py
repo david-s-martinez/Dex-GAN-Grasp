@@ -229,7 +229,7 @@ class FFHGANet(object):
         }
         total_loss = gen_loss_fake + (loss_dict['transl_loss'] + loss_dict['rot_loss'] + loss_dict['conf_loss'])
         loss_dict["total_loss_gen"] = total_loss
-
+        self.last_loss_dict_gen = loss_dict
         return total_loss, loss_dict
 
     def eval_ffhevaluator_accuracy(self, data):
@@ -660,7 +660,7 @@ class FFHGANet(object):
         # Return the loss
         return loss_dict_ffhgenerator
     
-    def update_ffhgan(self, real_data):
+    def update_ffhgan(self, real_data, is_train_gen = True):
         """ Receives a dict with all the input data to the ffhgenerator, sets the model input and runs one complete update step.
         """
         # Make sure net is in train mode
@@ -696,25 +696,28 @@ class FFHGANet(object):
         self.optim_ffhgan_discriminator.step()
 
         # Train Generator
-        fake_data = {
-            "bps_object": real_data["bps_object"],
-            "rot_matrix": fake_rot_6D,
-            # "rot_matrix": y_fake["rot_matrix"],
-            "rot_6D": fake_rot_6D,
-            "transl": fake_transl,
-            "joint_conf": fake_joint_conf
-        }
-        fake_data_gen = fake_data
-        fake_data_gen["rot_matrix"] = y_fake["rot_matrix"]
-        fake_score_gen = self.FFHGAN.discriminator(fake_data_gen)
-        # Compute loss based on reconstructed data
-        real_data["rot_matrix"] = real_data["rot_matrix"].view(real_data["bps_object"].shape[0], -1)
-        total_loss_gen, loss_dict_gen = self.compute_loss_ffhgan_generator(real_data, fake_data, fake_score_gen)
+        if is_train_gen:
+            fake_data = {
+                "bps_object": real_data["bps_object"],
+                "rot_matrix": fake_rot_6D,
+                # "rot_matrix": y_fake["rot_matrix"],
+                "rot_6D": fake_rot_6D,
+                "transl": fake_transl,
+                "joint_conf": fake_joint_conf
+            }
+            fake_data_gen = fake_data
+            fake_data_gen["rot_matrix"] = y_fake["rot_matrix"]
+            fake_score_gen = self.FFHGAN.discriminator(fake_data_gen)
+            # Compute loss based on reconstructed data
+            real_data["rot_matrix"] = real_data["rot_matrix"].view(real_data["bps_object"].shape[0], -1)
+            total_loss_gen, loss_dict_gen = self.compute_loss_ffhgan_generator(real_data, fake_data, fake_score_gen)
 
-        # Zero gradients, backprop new loss gradient, run one step
-        self.optim_ffhgan_generator.zero_grad()
-        total_loss_gen.backward()
-        self.optim_ffhgan_generator.step()
+            # Zero gradients, backprop new loss gradient, run one step
+            self.optim_ffhgan_generator.zero_grad()
+            total_loss_gen.backward()
+            self.optim_ffhgan_generator.step()
+        else:
+            loss_dict_gen = self.last_loss_dict_gen
         # Return the loss
         # loss_dict = loss_dict_disc | loss_dict_gen
         loss_dict = loss_dict_disc.copy()

@@ -25,7 +25,7 @@ vis_grasp_refinement: false
 
 # log
 print_freq: 100 # times to print within one epoch
-save_freq: 1
+save_freq: 3 #1 for vae
 save_latest_freq: 1
 to_tensorboard: true
 
@@ -40,10 +40,10 @@ latentD: 5
 lr: 0.0001
 lr_policy: plateau
 num_bps_per_object: 5
-num_epochs: 30
+num_epochs: 90 # 30 vae
 patience_lr_policy_plateau: 3
 scale: 1
 threshold_lr_policy_plateau: 0.01
 weight_decay: 0.0005
 weight_init_type: xavier
-
+gen_train_freq : 2 #only for gan

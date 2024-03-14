@@ -78,7 +78,10 @@ def main():
                     t_load_data = cur_iter_start - prev_iter_end
 
                 # Update model one step, get losses
-                loss_dict = ffhgan.update_ffhgan(data)
+                if i % cfg['gen_train_freq'] == 0:
+                    loss_dict = ffhgan.update_ffhgan(data, is_train_gen= True)
+                else:
+                    loss_dict = ffhgan.update_ffhgan(data, is_train_gen = False)
 
                 # Log loss
                 if total_steps % cfg["print_freq"] == 0:
