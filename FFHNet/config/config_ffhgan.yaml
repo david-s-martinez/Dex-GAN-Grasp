@@ -38,6 +38,8 @@ init_gain: 0.02
 kl_coef: 0.005
 latentD: 5
 lr: 0.0001
+lr_dis: 0.00005 #lr for discriminator
+lr_gen: 0.0001 #lr for generator
 lr_policy: plateau
 num_bps_per_object: 5
 num_epochs: 90 # 30 vae
@@ -46,4 +48,4 @@ scale: 1
 threshold_lr_policy_plateau: 0.01
 weight_decay: 0.0005
 weight_init_type: xavier
-gen_train_freq : 2 #only for gan
+gen_train_freq : 1 #only for gan

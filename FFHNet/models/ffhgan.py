@@ -100,11 +100,11 @@ class FFHGANet(object):
                                                        betas=(cfg["beta1"], 0.999),
                                                        weight_decay=cfg["weight_decay"])
             self.optim_ffhgan_generator = torch.optim.Adam(self.FFHGAN.generator.parameters(),
-                                                       lr=cfg["lr"],
+                                                       lr=cfg["lr_gen"],
                                                        betas=(cfg["beta1"], 0.999),
                                                        weight_decay=cfg["weight_decay"])
             self.optim_ffhgan_discriminator = torch.optim.Adam(self.FFHGAN.discriminator.parameters(),
-                                                       lr=cfg["lr"],
+                                                       lr=cfg["lr_dis"],
                                                        betas=(cfg["beta1"], 0.999),
                                                        weight_decay=cfg["weight_decay"])
             self.optim_ffhevaluator = torch.optim.Adam(self.FFHEvaluator.parameters(),
