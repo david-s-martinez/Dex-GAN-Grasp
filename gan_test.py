@@ -185,9 +185,12 @@ def train():
 if __name__ == '__main__':
     if True:
         parser = argparse.ArgumentParser()
-        parser.add_argument('--gen_path', default='checkpoints/ffhgan/2023-09-19T00_39_20_ffhgan_lr_0.0001_bs_1000', help='path to FFHGenerator model')
+        # parser.add_argument('--gen_path', default='checkpoints/ffhgan/2023-09-19T00_39_20_ffhgan_lr_0.0001_bs_1000', help='path to FFHGenerator model')
+        parser.add_argument('--gen_path', default='checkpoints/ffhgan/ffhngan_dis_fool_2', help='path to FFHGenerator model')
+        # parser.add_argument('--gen_path', default='checkpoints/ffhgan/ffhgan_gen_fake_loss_sc01', help='path to FFHGenerator model')
         # parser.add_argument('--gen_path', default='models/ffhgenerator', help='path to FFHGenerator model')
-        parser.add_argument('--load_gen_epoch', type=int, default=14, help='epoch of FFHGenerator model')
+        parser.add_argument('--load_gen_epoch', type=int, default=45, help='epoch of FFHGenerator model')
+        # parser.add_argument('--load_gen_epoch', type=int, default=60, help='epoch of FFHGenerator model')
         # parser.add_argument('--load_gen_epoch', type=int, default=12, help='epoch of FFHGenerator model')
         # parser.add_argument('--load_gen_epoch', type=int, default=10, help='epoch of FFHGenerator model')
         parser.add_argument('--eva_path', default='models/ffhevaluator', help='path to FFHEvaluator model')
