@@ -2,6 +2,8 @@ from __future__ import division
 import os
 import argparse
 import time
+import cv2
+import transforms3d.quaternions as quat
 import torch
 from torch.utils.data import DataLoader
 import math
@@ -96,22 +98,23 @@ def maad_for_grasp_distribution(grasp1, grasp2):
     if torch.is_tensor(grasp1['rot_matrix']):
         grasp1['rot_matrix'] = grasp1['rot_matrix'].cpu().data.numpy()
         grasp1['transl'] = grasp1['transl'].cpu().data.numpy()
-        grasp1['pred_joint_conf'] = grasp1['pred_joint_conf'].cpu().data.numpy()
+        grasp1['joint_conf'] = grasp1['joint_conf'].cpu().data.numpy()
 
     # calculate distance matrix
     transl_dist_mat = euclidean_distance_points_pairwise_np(grasp1['transl'], grasp2['transl'])
     rot_dist_mat = geodesic_distance_rotmats_pairwise_np(grasp1['rot_matrix'], grasp2['rot_matrix'])
 
     # Adapt format of joint conf from 15 dim to 20 dim and numpy array
-    grasp2_joint_conf = np.zeros((len(grasp2['joint_conf']),20))
-    for idx in range(len(grasp2['joint_conf'])):
-        grasp2_joint_conf[idx] = grasp2['joint_conf'][idx]
-    pred_joint_conf_full = np.zeros((grasp1['pred_joint_conf'].shape[0], 20))
-    for idx in range(grasp1['pred_joint_conf'].shape[0]):
-        pred_joint_conf_full[idx] = full_joint_conf_from_vae_joint_conf(grasp1['pred_joint_conf'][idx])
-    grasp1['pred_joint_conf'] = pred_joint_conf_full
+    grasp2_joint_conf = grasp2['joint_conf']
+    # grasp2_joint_conf = np.zeros((len(grasp2['joint_conf']),20))
+    # for idx in range(len(grasp2['joint_conf'])):
+    #     grasp2_joint_conf[idx] = grasp2['joint_conf'][idx]
+    # pred_joint_conf_full = np.zeros((grasp1['pred_joint_conf'].shape[0], 20))
+    # for idx in range(grasp1['pred_joint_conf'].shape[0]):
+    #     pred_joint_conf_full[idx] = full_joint_conf_from_vae_joint_conf(grasp1['pred_joint_conf'][idx])
+    # grasp1['pred_joint_conf'] = pred_joint_conf_full
 
-    joint_dist_mat = euclidean_distance_joint_conf_pairwise_np(grasp1['pred_joint_conf'], grasp2_joint_conf)
+    joint_dist_mat = euclidean_distance_joint_conf_pairwise_np(grasp1['joint_conf'], grasp2_joint_conf)
 
     transl_loss = np.min(transl_dist_mat, axis=1)  # [N,1]
     rot_loss = np.zeros_like(transl_loss)
@@ -130,6 +133,36 @@ def maad_for_grasp_distribution(grasp1, grasp2):
     coverage = len(unique_cor_grasp_idxs) / len(grasp2['transl'])
 
     return np.sum(transl_loss), np.sum(rot_loss), np.sum(joint_loss), coverage
+
+def poses_to_transforms(pose_vectors):
+    """
+    Convert multiple 7D pose vectors into rotation matrices and translation vectors.
+
+    Args:
+        pose_vectors (numpy.array): Input pose vectors of shape (N, 7),
+                                     where each row represents a pose vector [x, y, z, qx, qy, qz, qw].
+
+    Returns:
+        tuple: (rotation_matrices, translation_vectors)
+               rotation_matrices (numpy.array): Array of rotation matrices of shape (N, 3, 3).
+               translation_vectors (numpy.array): Array of translation vectors of shape (N, 3).
+    """
+
+    # Extract position and quaternion components from pose vectors
+    positions = pose_vectors[:, :3]  # Shape (N, 3)
+    quaternions = pose_vectors[:, 3:]  # Shape (N, 4)
+
+    # Convert quaternions to rotation matrices
+    rotation_matrices = np.empty((len(pose_vectors), 3, 3))
+    for i in range(len(pose_vectors)):
+        q = quaternions[i]  # Quaternion [qx, qy, qz, qw]
+        R = quat.quat2mat(q)  # Convert quaternion to rotation matrix
+        rotation_matrices[i] = R
+    
+    # Translation vectors
+    translation_vectors = positions
+
+    return rotation_matrices, translation_vectors
 
 def main(config_path,
     load_epoch_eva,
@@ -160,19 +193,24 @@ def main(config_path,
         print(i,batch.keys())
         # ['rot_matrix', 'transl', 'joint_conf', 'bps_object', 'pcd_path', 'obj_name']
         print(batch["obj_name"])
+        transl_loss_sum = 0
+        joint_loss_sum = 0
+        rot_loss_sum = 0
+        coverage_sum = 0
+        num_nan_out = 0
+        num_nan_transl = 0
+        num_nan_rot = 0
+        num_nan_joint = 0
         for idx in range(len(batch['obj_name'])):
-            # TODO: convert into dict as in grasps_gt look at source code of FFHGeneratorDataSet and get_grasps_for_object
-            # palm_poses, joint_confs, num_succ = grasp_data.get_grasps_for_object(obj_name=batch['obj_name'][idx],outcome='positive')
-            # print(palm_poses)
+            palm_poses, joint_confs, num_succ = grasp_data.get_grasps_for_object(obj_name=batch['obj_name'][idx],outcome='positive')
+            palm_rots, palm_trans = poses_to_transforms(np.array(palm_poses))
             grasps_gt = {
-            'rot_matrix': batch['rot_matrix'][idx], 
-            'transl': batch['transl'][idx], 
-            'joint_conf': batch['joint_conf'][idx],
+            'rot_matrix': palm_rots, 
+            'transl': palm_trans, 
+            'joint_conf': np.array(joint_confs),
             }
-            print(grasps_gt.keys())
             # out = model.sample(batch['bps_object'][idx], num_samples=100)
             out = ffhgan.generate_grasps(batch['bps_object'][idx], n_samples=n_samples, return_arr=True)
-            print(out.keys())
             transl_loss, rot_loss, joint_loss, coverage = maad_for_grasp_distribution(out, grasps_gt)
             if not math.isnan(transl_loss) and not math.isnan(rot_loss) and not math.isnan(joint_loss):
                 transl_loss_sum += transl_loss
