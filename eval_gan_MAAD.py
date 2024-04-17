@@ -3,6 +3,7 @@ import os
 import argparse
 import time
 import cv2
+import open3d as o3d
 import transforms3d.quaternions as quat
 import torch
 from torch.utils.data import DataLoader
@@ -190,7 +191,7 @@ def main(config_path,
 
     dset_gen = FFHGeneratorDataSet(cfg, eval=True)
     train_loader_gen = DataLoader(dset_gen,
-                                    batch_size=cfg["batch_size"],
+                                    batch_size=64,
                                     shuffle=True,
                                     drop_last=True,
                                     num_workers=cfg["num_threads"])
@@ -214,22 +215,17 @@ def main(config_path,
     batch = load_batch('eval_batch.pth')
     print(batch.keys())
     for idx in range(len(batch['obj_name'])):
-        palm_poses, joint_confs, num_succ = grasp_data.get_grasps_for_object(obj_name=batch['obj_name'][idx],outcome='positive')
-        palm_rots, palm_trans = poses_to_transforms(np.array(palm_poses))
-
-        grasps_gt = {
-        'rot_matrix': palm_rots, 
-        'transl': palm_trans, 
-        'joint_conf': np.array(joint_confs),
-        }
+        grasps_gt = dset_gen.get_grasps_from_pcd_path(batch['pcd_path'][idx])
+        grasps_gt['joint_conf'] = np.array(grasps_gt['joint_conf'])
 
         out = ffhgan.generate_grasps(
             batch['bps_object'][idx].cpu().data.numpy(), 
-            n_samples=palm_rots.shape[0], 
+            n_samples=grasps_gt['joint_conf'].shape[0], 
             return_arr=True
             )
         
         if visualize:
+            visualization.show_ground_truth_grasp_distribution(batch['obj_name'][idx], dset_gen.grasp_data_path, dset_gen.gazebo_obj_path                                                 )
             visualization.show_generated_grasp_distribution(batch['pcd_path'][idx], grasps_gt)
             visualization.show_generated_grasp_distribution(batch['pcd_path'][idx], out)
             

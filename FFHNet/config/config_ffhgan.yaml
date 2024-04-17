@@ -2,7 +2,7 @@
 # data_dir: C:/Users/David/PythonProjects/ProgrammingWork/FFHNet-dev/data/robotiq_data_v1.0 # path to dataset
 data_dir: /home/david.martinez/grasp_experiments/Multifinger-Net-dev/data/robotiq_data_v1.0 # path to dataset
 load_path:  # in case continue training otherwise leave empty
-gazebo_obj_path: /home/yb/Projects/gazebo-objects
+gazebo_obj_path: C:/Users/David/PythonProjects/ProgrammingWork/gazebo-objects/objects_gazebo
 
 # train/eval mode
 model: ffhnet # either ffhnet or pointnet

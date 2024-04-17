@@ -42,7 +42,29 @@ class FFHGeneratorDataSet(data.Dataset):
     def get_objs_names(self, path):
         objs_folder = os.path.join(path, 'pcd')
         return [obj for obj in os.listdir(objs_folder) if '.' not in obj]
+    
+    def get_grasps_from_pcd_path(self, pcd_path,label='positive'):
+        base_path, pcd_name = os.path.split(pcd_path)
+        base_path = base_path.replace('pcd','bps')
+        bps_name = pcd_name.replace('pcd', 'bps')
+        bps_name = bps_name.replace('.bps','.npy')
+        bps_path = os.path.join(base_path, bps_name)
+        obj_name = '_'.join(bps_name.split('_bps')[:-1])
+        centr_T_mesh = self.read_pcd_transform(bps_path)
+        # bps_path = bps_path.replace('multi','single')
+        palm_poses, joint_confs, _ = self.grasp_data_handler.get_grasps_for_object(obj_name=obj_name,outcome=label)
 
+        palm_poses_rot_mat = np.zeros((len(palm_poses),3,3))
+        palm_poses_transl = np.zeros((len(palm_poses),3))
+
+        for idx in range(len(palm_poses)):
+            palm_pose_hom = utils.hom_matrix_from_pos_quat_list(palm_poses[idx])
+            palm_pose_centr = np.matmul(centr_T_mesh, palm_pose_hom)
+            palm_poses_rot_mat[idx] = palm_pose_centr[:3,:3]
+            palm_poses_transl[idx] = palm_pose_centr[:3,-1]
+        grasps = {'rot_matrix':palm_poses_rot_mat, 'transl': palm_poses_transl, 'joint_conf': joint_confs}
+        return grasps
+    
     def get_all_bps_paths_and_grasp_idxs(self, objs_folder, success_per_obj_dict):
         """ Creates a long list where each of the N bps per object get repeated as many times
         as there are positive grasps for this object. It also returns a list of indexes with the same length as the bps list
