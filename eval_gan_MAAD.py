@@ -13,9 +13,16 @@ from FFHNet.config.config import Config
 from FFHNet.data.ffhevaluator_data_set import FFHEvaluatorDataSet, FFHEvaluatorPCDDataSet
 from FFHNet.data.ffhgenerator_data_set import FFHGeneratorDataSet
 from FFHNet.utils.writer import Writer
+from FFHNet.utils import utils, visualization, writer
 from FFHNet.models.ffhgan import FFHGANet
 from FFHNet.utils.grasp_data_handler import GraspDataHandlerVae
 ROOT_PATH = os.path.dirname(os.path.abspath(__file__))
+
+def save_batch_to_file(batch):
+    torch.save(batch, "eval_batch.pth")
+
+def load_batch(path):
+    return torch.load(path, map_location="cuda:0")
 
 def full_joint_conf_from_vae_joint_conf(vae_joint_conf):
     """Takes in the 15 dimensional joint conf output from VAE and repeats the 3*N-th dimension to turn dim 15 into dim 20.
@@ -181,60 +188,75 @@ def main(config_path,
     ffhgan.load_ffhgenerator(epoch=load_epoch_gen, load_path=load_path_gen)
     torch.multiprocessing.set_start_method('spawn')
 
-    dset_gen = FFHGeneratorDataSet(cfg)
+    dset_gen = FFHGeneratorDataSet(cfg, eval=True)
     train_loader_gen = DataLoader(dset_gen,
                                     batch_size=cfg["batch_size"],
                                     shuffle=True,
                                     drop_last=True,
                                     num_workers=cfg["num_threads"])
     grasp_data = dset_gen.grasp_data_handler
- 
-    for i, batch in enumerate(train_loader_gen):
-        print(i,batch.keys())
-        # ['rot_matrix', 'transl', 'joint_conf', 'bps_object', 'pcd_path', 'obj_name']
-        print(batch["obj_name"])
-        transl_loss_sum = 0
-        joint_loss_sum = 0
-        rot_loss_sum = 0
-        coverage_sum = 0
-        num_nan_out = 0
-        num_nan_transl = 0
-        num_nan_rot = 0
-        num_nan_joint = 0
-        for idx in range(len(batch['obj_name'])):
-            palm_poses, joint_confs, num_succ = grasp_data.get_grasps_for_object(obj_name=batch['obj_name'][idx],outcome='positive')
-            palm_rots, palm_trans = poses_to_transforms(np.array(palm_poses))
-            grasps_gt = {
-            'rot_matrix': palm_rots, 
-            'transl': palm_trans, 
-            'joint_conf': np.array(joint_confs),
-            }
-            # out = model.sample(batch['bps_object'][idx], num_samples=100)
-            out = ffhgan.generate_grasps(batch['bps_object'][idx], n_samples=n_samples, return_arr=True)
-            transl_loss, rot_loss, joint_loss, coverage = maad_for_grasp_distribution(out, grasps_gt)
-            if not math.isnan(transl_loss) and not math.isnan(rot_loss) and not math.isnan(joint_loss):
-                transl_loss_sum += transl_loss
-                rot_loss_sum += rot_loss
-                joint_loss_sum += joint_loss
-            else:
-                if math.isnan(transl_loss):
-                    num_nan_transl += 1
-                if math.isnan(rot_loss):
-                    num_nan_rot += 1
-                if math.isnan(joint_loss):
-                    num_nan_joint += 1
-                num_nan_out += 1
-            coverage_sum += coverage
 
-        coverage_mean = coverage_sum / len(batch['obj_name'])
-        print('transl_loss_sum:', transl_loss_sum)
-        print('rot_loss_sum:', rot_loss_sum)
-        print('joint_loss_sum:', joint_loss_sum)
-        print('coverage', coverage_mean)
-        print(f'invalid output is: {num_nan_out}/{len(batch["obj_name"])}')
-        print(f'invalid transl output is: {num_nan_transl}/{len(batch["obj_name"])}')
-        print(f'invalid rot output is: {num_nan_rot}/{len(batch["obj_name"])}')
-        print(f'invalid joint output is: {num_nan_joint}/{len(batch["obj_name"])}')
+    if not os.path.isfile('eval_batch.pth'):
+        for i, batch in enumerate(train_loader_gen):
+            if i == 0:
+                save_batch_to_file(batch)
+                break
+
+    transl_loss_sum = 0
+    joint_loss_sum = 0
+    rot_loss_sum = 0
+    coverage_sum = 0
+    num_nan_out = 0
+    num_nan_transl = 0
+    num_nan_rot = 0
+    num_nan_joint = 0
+    visualize = False
+    batch = load_batch('eval_batch.pth')
+    print(batch.keys())
+    for idx in range(len(batch['obj_name'])):
+        palm_poses, joint_confs, num_succ = grasp_data.get_grasps_for_object(obj_name=batch['obj_name'][idx],outcome='positive')
+        palm_rots, palm_trans = poses_to_transforms(np.array(palm_poses))
+
+        grasps_gt = {
+        'rot_matrix': palm_rots, 
+        'transl': palm_trans, 
+        'joint_conf': np.array(joint_confs),
+        }
+
+        out = ffhgan.generate_grasps(
+            batch['bps_object'][idx].cpu().data.numpy(), 
+            n_samples=palm_rots.shape[0], 
+            return_arr=True
+            )
+        
+        if visualize:
+            visualization.show_generated_grasp_distribution(batch['pcd_path'][idx], grasps_gt)
+            visualization.show_generated_grasp_distribution(batch['pcd_path'][idx], out)
+            
+        transl_loss, rot_loss, joint_loss, coverage = maad_for_grasp_distribution(out, grasps_gt)
+        if not math.isnan(transl_loss) and not math.isnan(rot_loss) and not math.isnan(joint_loss):
+            transl_loss_sum += transl_loss
+            rot_loss_sum += rot_loss
+            joint_loss_sum += joint_loss
+        else:
+            if math.isnan(transl_loss):
+                num_nan_transl += 1
+            if math.isnan(rot_loss):
+                num_nan_rot += 1
+            if math.isnan(joint_loss):
+                num_nan_joint += 1
+            num_nan_out += 1
+        coverage_sum += coverage
+
+    coverage_mean = coverage_sum / len(batch['obj_name'])
+    print('transl_loss_sum:', transl_loss_sum)
+    print('rot_loss_sum:', rot_loss_sum)
+    print('joint_loss_sum:', joint_loss_sum)
+    print('coverage', coverage_mean)
+    print(f'invalid output is: {num_nan_out}/{len(batch["obj_name"])}')
+    print(f'invalid transl output is: {num_nan_transl}/{len(batch["obj_name"])}')
+    print(f'invalid rot output is: {num_nan_rot}/{len(batch["obj_name"])}')
+    print(f'invalid joint output is: {num_nan_joint}/{len(batch["obj_name"])}')
 
 if __name__ == '__main__':
     if True:
