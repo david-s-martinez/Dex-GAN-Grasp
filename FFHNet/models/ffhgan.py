@@ -177,6 +177,70 @@ class FFHGANet(object):
 
         return total_loss, loss_dict
     
+    def calculate_interp(self, real_data, fake_data):
+        # Random weight term for interpolation between real and fake data
+        if len(real_data.shape)==3:
+            alpha = torch.randn((real_data.size(0), 1, 1), device=self.FFHGAN.device)
+        else:
+            alpha = torch.randn((real_data.size(0), 1), device=self.FFHGAN.device)
+        # Get random interpolation between real and fake data
+        interpolates = (alpha * real_data + ((1 - alpha) * fake_data)).requires_grad_(True)
+        return interpolates
+    
+    def calculate_grad_interp(self, interpolates, model_interpolates):
+        grad_outputs = torch.ones(model_interpolates.size(), device=self.FFHGAN.device, requires_grad=False)
+
+        # Get gradient w.r.t. interpolates
+        gradients = torch.autograd.grad(
+            outputs=model_interpolates,
+            inputs=interpolates,
+            grad_outputs=grad_outputs,
+            create_graph=True,
+            retain_graph=True,
+            only_inputs=True,
+        )[0]
+        gradients = gradients.view(gradients.size(0), -1)
+        return gradients
+    
+    def calculate_gradient_penalty(self, real_data, fake_data):
+        """Calculates the gradient penalty loss for WGAN GP"""
+        fake_rot_matrix = fake_data["rot_matrix"]
+        fake_transl = fake_data["transl"]
+        fake_joint_conf = fake_data["joint_conf"]
+
+        real_rot_matrix = real_data["rot_matrix"].to(self.FFHGAN.device)
+        real_transl = real_data["transl"].to(self.FFHGAN.device)
+        real_joint_conf = real_data["joint_conf"].to(self.FFHGAN.device)
+        interp_data = {
+                "bps_object": real_data["bps_object"],
+                "rot_matrix": self.calculate_interp(real_rot_matrix,fake_rot_matrix),
+                "transl": self.calculate_interp(real_transl, fake_transl),
+                "joint_conf": self.calculate_interp(real_joint_conf,fake_joint_conf)
+            }
+
+        interpolate_scores = self.FFHGAN.discriminator(interp_data)
+        gradient_penaties = []
+
+        for out in ["rot_matrix", "transl", "joint_conf"]:
+            gradients = self.calculate_grad_interp(interp_data[out], interpolate_scores)
+            gradient_penalty = torch.mean((gradients.norm(2, dim=1) - 1) ** 2)
+            gradient_penaties.append(gradient_penalty)
+        return torch.mean(torch.stack(gradient_penaties))
+    
+    def compute_loss_ffhgan_discriminator_wass(self, real_score, fake_score, real_data, fake_data, penalty_gain = 10):
+        """Computes the binary cross entropy loss between predicted real score and true real score"""
+        bce_loss_real = torch.mean(real_score)
+        bce_loss_fake = torch.mean(fake_score)
+        gradient_penalty = self.calculate_gradient_penalty(real_data, fake_data)
+        total_loss_disc = -bce_loss_real + bce_loss_fake + (gradient_penalty * penalty_gain)
+        loss_dict = {
+            'total_loss_disc': total_loss_disc, 
+            'bce_loss_real': bce_loss_real, 
+            'bce_loss_fake':bce_loss_fake
+        }
+
+        return total_loss_disc, loss_dict
+    
     def compute_loss_ffhgan_discriminator(self, real_score, fake_score):
         """Computes the binary cross entropy loss between predicted real score and true real score"""
         bce_loss_real = self.bce_weight * self.BCE_loss(
@@ -691,6 +755,7 @@ class FFHGANet(object):
         # fake_score = self.FFHGAN.discriminator(fake_data)
 
         total_loss_disc, loss_dict_disc = self.compute_loss_ffhgan_discriminator(real_score, fake_score)
+        # total_loss_disc, loss_dict_disc = self.compute_loss_ffhgan_discriminator_wass(real_score, fake_score, real_data, fake_data_disc)
         self.optim_ffhgan_discriminator.zero_grad()
         total_loss_disc.backward()
         self.optim_ffhgan_discriminator.step()
