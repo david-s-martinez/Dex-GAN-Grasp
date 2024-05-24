@@ -16,6 +16,7 @@ from FFHNet.data.ffhgenerator_data_set import FFHGeneratorDataSet
 from FFHNet.utils.writer import Writer
 from FFHNet.utils import utils, visualization, writer
 from FFHNet.models.ffhgan import FFHGANet
+from FFHNet.models.ffhnet import FFHNet
 from FFHNet.utils.grasp_data_handler import GraspDataHandlerVae
 ROOT_PATH = os.path.dirname(os.path.abspath(__file__))
 
@@ -173,20 +174,22 @@ def poses_to_transforms(pose_vectors):
     return rotation_matrices, translation_vectors
 
 def main(config_path,
-    load_epoch_eva,
     load_epoch_gen,
-    load_path_eva,
     load_path_gen,
-    n_samples=100,
-    thresh_succ=0.5,
+    is_gan = True,
     show_individual_grasps=False):
 
     config = Config(config_path)
     cfg = config.parse()
-    ffhgan = FFHGANet(cfg)
-    print(ffhgan)
+
+    if is_gan:
+        model = FFHGANet(cfg)
+    else:
+        model = FFHNet(cfg)
+    print(model)
+    
     base_data_bath = os.path.join(ROOT_PATH,'data','real_objects')
-    ffhgan.load_ffhgenerator(epoch=load_epoch_gen, load_path=load_path_gen)
+    model.load_ffhgenerator(epoch=load_epoch_gen, load_path=load_path_gen)
     torch.multiprocessing.set_start_method('spawn')
 
     dset_gen = FFHGeneratorDataSet(cfg, eval=True)
@@ -211,20 +214,19 @@ def main(config_path,
     num_nan_transl = 0
     num_nan_rot = 0
     num_nan_joint = 0
-    visualize = False
     batch = load_batch('eval_batch.pth')
     print(batch.keys())
     for idx in range(len(batch['obj_name'])):
         grasps_gt = dset_gen.get_grasps_from_pcd_path(batch['pcd_path'][idx])
         grasps_gt['joint_conf'] = np.array(grasps_gt['joint_conf'])
 
-        out = ffhgan.generate_grasps(
+        out = model.generate_grasps(
             batch['bps_object'][idx].cpu().data.numpy(), 
             n_samples=grasps_gt['joint_conf'].shape[0], 
             return_arr=True
             )
         
-        if visualize:
+        if show_individual_grasps:
             visualization.show_ground_truth_grasp_distribution(batch['obj_name'][idx], dset_gen.grasp_data_path, dset_gen.gazebo_obj_path                                                 )
             visualization.show_generated_grasp_distribution(batch['pcd_path'][idx], grasps_gt)
             visualization.show_generated_grasp_distribution(batch['pcd_path'][idx], out)
@@ -257,14 +259,13 @@ def main(config_path,
 if __name__ == '__main__':
     if True:
         parser = argparse.ArgumentParser()
-        # parser.add_argument('--gen_path', default='checkpoints/ffhgan/2023-09-19T00_39_20_ffhgan_lr_0.0001_bs_1000', help='path to FFHGenerator model')
+        # # Best VAE so far:
+        # parser.add_argument('--gen_path', default='checkpoints/ffhnet/2023-09-01T01_16_11_ffhnet_lr_0.0001_bs_1000', help='path to FFHGenerator model')
+        # parser.add_argument('--load_gen_epoch', type=int, default=24, help='epoch of FFHGenerator model')
+        # Best GAN so far:
         parser.add_argument('--gen_path', default='checkpoints/ffhgan/ffhngan_dis_fool_2', help='path to FFHGenerator model')
-        # parser.add_argument('--gen_path', default='checkpoints/ffhgan/ffhgan_gen_fake_loss_sc01', help='path to FFHGenerator model')
-        # parser.add_argument('--gen_path', default='models/ffhgenerator', help='path to FFHGenerator model')
         parser.add_argument('--load_gen_epoch', type=int, default=45, help='epoch of FFHGenerator model')
-        # parser.add_argument('--load_gen_epoch', type=int, default=60, help='epoch of FFHGenerator model')
-        # parser.add_argument('--load_gen_epoch', type=int, default=12, help='epoch of FFHGenerator model')
-        # parser.add_argument('--load_gen_epoch', type=int, default=10, help='epoch of FFHGenerator model')
+        
         parser.add_argument('--eva_path', default='models/ffhevaluator', help='path to FFHEvaluator model')
         parser.add_argument('--load_eva_epoch', type=int, default=30, help='epoch of FFHEvaluator model')
         parser.add_argument('--config', type=str, default='FFHNet/config/config_ffhgan.yaml')
@@ -277,5 +278,4 @@ if __name__ == '__main__':
         load_epoch_eva = args.load_eva_epoch
         config_path = args.config
 
-        main(config_path, load_epoch_eva, load_epoch_gen, load_path_eva,
-                                                load_path_gen, show_individual_grasps=True)
+        main(config_path, load_epoch_gen, load_path_gen, is_gan = True, show_individual_grasps = False)
