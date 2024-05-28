@@ -43,9 +43,9 @@ if __name__ == '__main__':
     # src_pc_path = '/home/vm/ffhnet-dataset/ffhnet_data/point_clouds'
     # dst_base_path = '/home/vm/ffhnet-dataset/ffhnet_data/'
 
-    metadata_csv_path = '/home/vm/new_data_full_copy/metadata.csv'
-    src_pc_path = '/home/vm/new_data_full_copy/point_clouds'
-    dst_base_path = '/home/vm/new_data_full_copy/'
+    metadata_csv_path = '/home/dm/panda_ws/final_data/metadata.csv'
+    src_pc_path = '/home/dm/panda_ws/final_data/point_clouds'
+    dst_base_path = '/home/dm/panda_ws/final_data/'
 
     main(metadata_csv_path, src_pc_path, dst_base_path)
     # For testing
