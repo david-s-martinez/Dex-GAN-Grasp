@@ -1,8 +1,9 @@
 # path related
 # data_dir: C:/Users/David/PythonProjects/ProgrammingWork/FFHNet-dev/data/robotiq_data_v1.0 # path to dataset
-data_dir: /home/david.martinez/grasp_experiments/Multifinger-Net-dev/data/robotiq_data_v1.0 # path to dataset
+# data_dir: /home/david.martinez/grasp_experiments/Multifinger-Net-dev/data/robotiq_data_v1.0 # path to dataset
+data_dir: /data/net/userstore/david.martinez/robotiq_data_v2.0_full # path to dataset
 load_path:  # in case continue training otherwise leave empty
-gazebo_obj_path: C:/Users/David/PythonProjects/ProgrammingWork/gazebo-objects/objects_gazebo
+gazebo_obj_path: /home/yb/Projects/gazebo-objects
 
 # train/eval mode
 model: ffhnet # either ffhnet or pointnet
@@ -16,7 +17,7 @@ ds_name: train
 grasp_data_file_name: grasp_data_all.h5
 gpu_ids:
   - 0
-num_threads: 1
+num_threads: 16
 train_ffhevaluator: false
 train_ffhgenerator: true
 eval_ffhevaluator: false
@@ -38,14 +39,18 @@ init_gain: 0.02
 kl_coef: 0.005
 latentD: 5
 lr: 0.0001
-lr_dis: 0.00005 #lr for discriminator
-lr_gen: 0.0001 #lr for generator
 lr_policy: plateau
 num_bps_per_object: 5
 num_epochs: 90 # 30 vae
+# num_epochs: 30
 patience_lr_policy_plateau: 3
 scale: 1
 threshold_lr_policy_plateau: 0.01
 weight_decay: 0.0005
 weight_init_type: xavier
-gen_train_freq : 1 #only for gan
+
+# Only for GAN:
+is_wgan: false # select Wasserstein GAN
+gen_train_freq : 1 
+lr_dis: 0.0001 #lr for discriminator
+lr_gen: 0.0001 #lr for generator

@@ -72,7 +72,7 @@ class FFHGANet(object):
         torch.set_default_dtype(self.dtype)
         self.cfg = cfg
         self.is_train = cfg["is_train"]
-        self.is_wgan = False # TODO: load this param from cfg
+        self.is_wgan = cfg["is_wgan"]
         if torch.cuda.is_available:
             self.device = torch.device('cuda:{}'.format(cfg["gpu_ids"][0]))
             torch.cuda.empty_cache()
