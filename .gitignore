@@ -7,3 +7,4 @@ figures/
 dist/
 FFHNet.egg-info/
 data/robotiq_data_v1.0
+data/robotiq_data_v2.0_full

@@ -1,3 +1,4 @@
+#!/bin/python
 from __future__ import division
 import os
 import argparse
@@ -18,6 +19,7 @@ from FFHNet.utils import utils, visualization, writer
 from FFHNet.models.ffhgan import FFHGANet
 from FFHNet.models.ffhnet import FFHNet
 from FFHNet.utils.grasp_data_handler import GraspDataHandlerVae
+import csv
 ROOT_PATH = os.path.dirname(os.path.abspath(__file__))
 
 def save_batch_to_file(batch):
@@ -190,7 +192,6 @@ def main(config_path,
     
     base_data_bath = os.path.join(ROOT_PATH,'data','real_objects')
     model.load_ffhgenerator(epoch=load_epoch_gen, load_path=load_path_gen)
-    torch.multiprocessing.set_start_method('spawn')
 
     dset_gen = FFHGeneratorDataSet(cfg, eval=True)
     train_loader_gen = DataLoader(dset_gen,
@@ -216,8 +217,11 @@ def main(config_path,
     num_nan_joint = 0
     batch = load_batch('eval_batch.pth')
     print(batch.keys())
+
     for idx in range(len(batch['obj_name'])):
-        grasps_gt = dset_gen.get_grasps_from_pcd_path(batch['pcd_path'][idx])
+        pcd_filename = os.path.split(batch['pcd_path'][idx].replace("\\","/"))[1]
+        pcd_path = os.path.join(cfg['data_dir'],"eval","pcd",batch['obj_name'][idx],pcd_filename)
+        grasps_gt = dset_gen.get_grasps_from_pcd_path(pcd_path)
         grasps_gt['joint_conf'] = np.array(grasps_gt['joint_conf'])
 
         out = model.generate_grasps(
@@ -227,9 +231,10 @@ def main(config_path,
             )
         
         if show_individual_grasps:
-            visualization.show_ground_truth_grasp_distribution(batch['obj_name'][idx], dset_gen.grasp_data_path, dset_gen.gazebo_obj_path                                                 )
-            visualization.show_generated_grasp_distribution(batch['pcd_path'][idx], grasps_gt)
-            visualization.show_generated_grasp_distribution(batch['pcd_path'][idx], out)
+            # Needs gazebo objects path
+            # visualization.show_ground_truth_grasp_distribution(batch['obj_name'][idx], dset_gen.grasp_data_path, dset_gen.gazebo_obj_path)
+            visualization.show_generated_grasp_distribution(pcd_path, grasps_gt)
+            visualization.show_generated_grasp_distribution(pcd_path, out)
             
         transl_loss, rot_loss, joint_loss, coverage = maad_for_grasp_distribution(out, grasps_gt)
         if not math.isnan(transl_loss) and not math.isnan(rot_loss) and not math.isnan(joint_loss):
@@ -256,15 +261,28 @@ def main(config_path,
     print(f'invalid rot output is: {num_nan_rot}/{len(batch["obj_name"])}')
     print(f'invalid joint output is: {num_nan_joint}/{len(batch["obj_name"])}')
 
+    return transl_loss_sum, rot_loss_sum, joint_loss_sum, coverage_mean
+
 if __name__ == '__main__':
     if True:
+        torch.multiprocessing.set_start_method('spawn')
         parser = argparse.ArgumentParser()
+
         # # Best VAE so far:
-        # parser.add_argument('--gen_path', default='checkpoints/ffhnet/2023-09-01T01_16_11_ffhnet_lr_0.0001_bs_1000', help='path to FFHGenerator model')
-        # parser.add_argument('--load_gen_epoch', type=int, default=24, help='epoch of FFHGenerator model')
-        # Best GAN so far:
-        parser.add_argument('--gen_path', default='checkpoints/ffhgan/ffhngan_dis_fool_2', help='path to FFHGenerator model')
-        parser.add_argument('--load_gen_epoch', type=int, default=45, help='epoch of FFHGenerator model')
+        # gen_path = "checkpoints/ffhnet/2023-09-01T01_16_11_ffhnet_lr_0.0001_bs_1000"
+        # best_epoch = 24
+
+        # # Best GAN so far:
+        # gen_path = "checkpoints/ffhgan/2024-04-10T13_53_04_ffhgan_lr_0.0001_bs_1000"
+        # best_epoch = 54
+
+        # Experiment checkpoint:
+        
+        gen_path = "checkpoints/ffhgan/2024-04-10T13_53_04_ffhgan_lr_0.0001_bs_1000"
+        best_epoch = 54
+
+        parser.add_argument('--gen_path', default=gen_path, help='path to FFHGenerator model')
+        parser.add_argument('--load_gen_epoch', type=int, default=best_epoch, help='epoch of FFHGenerator model')
         
         parser.add_argument('--eva_path', default='models/ffhevaluator', help='path to FFHEvaluator model')
         parser.add_argument('--load_eva_epoch', type=int, default=30, help='epoch of FFHEvaluator model')
@@ -278,4 +296,13 @@ if __name__ == '__main__':
         load_epoch_eva = args.load_eva_epoch
         config_path = args.config
 
-        main(config_path, load_epoch_gen, load_path_gen, is_gan = True, show_individual_grasps = False)
+        main(config_path, load_epoch_gen, load_path_gen, is_gan = True, show_individual_grasps = True)
+        
+        with open(load_path_gen + '_metrics.csv', 'w') as file:
+            writer = csv.writer(file)
+            writer.writerow(["epoch", "transl_loss_sum", "rot_loss_sum", "joint_loss_sum", "coverage_mean"])
+            for epoch in range(3,90,3):
+                print('Evaluating epoch:',epoch)
+                load_epoch_gen = epoch
+                transl_loss_sum, rot_loss_sum, joint_loss_sum, coverage_mean = main(config_path, load_epoch_gen, load_path_gen, is_gan = True, show_individual_grasps = False)
+                writer.writerow([epoch, transl_loss_sum, rot_loss_sum, joint_loss_sum, coverage_mean])
