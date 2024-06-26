@@ -190,11 +190,12 @@ if __name__ == '__main__':
         # best_epoch = 24
 
         # Best GAN so far:
-        gen_path = "checkpoints/ffhgan/2024-04-10T13_53_04_ffhgan_lr_0.0001_bs_1000"
-        best_epoch = 54
+        gen_path = "checkpoints/ffhgan/2024-03-10T17_31_55_ffhgan_lr_0.0001_bs_1000"
+        best_epoch = 32
         parser.add_argument('--gen_path', default=gen_path, help='path to FFHGenerator model')
         parser.add_argument('--load_gen_epoch', type=int, default=best_epoch, help='epoch of FFHGenerator model')
-        parser.add_argument('--eva_path', default='models/ffhevaluator', help='path to FFHEvaluator model')
+        # New evaluator:checkpoints/ffhevaluator/2024-06-23_ffhevaluator
+        parser.add_argument('--eva_path', default='checkpoints/ffhevaluator/2024-06-23_ffhevaluator', help='path to FFHEvaluator model')
         parser.add_argument('--load_eva_epoch', type=int, default=30, help='epoch of FFHEvaluator model')
         parser.add_argument('--config', type=str, default='FFHNet/config/config_ffhgan.yaml')
 
