@@ -1,7 +1,7 @@
 # path related
 # data_dir: C:/Users/David/PythonProjects/ProgrammingWork/FFHNet-dev/data/robotiq_data_v1.0 # path to dataset
 # data_dir: /home/david.martinez/grasp_experiments/Multifinger-Net-dev/data/robotiq_data_v1.0 # path to dataset
-data_dir: /workspaces/inference_container/Multifinger-Net-dev/data/robotiq_data_v1.0 # path to dataset
+data_dir: /workspaces/inference_container/Multifinger-Net-dev/data/robotiq_data_v2.0_full # path to dataset
 # data_dir: /data/net/userstore/david.martinez/robotiq_data_v2.0_full # path to dataset
 # data_dir: /home/dm/panda_ws/inference_container/Multifinger-Net-dev/data/robotiq_data_v2.0_full # path to dataset
 load_path:  # in case continue training otherwise leave empty
