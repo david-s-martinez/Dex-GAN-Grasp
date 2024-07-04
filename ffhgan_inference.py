@@ -88,7 +88,18 @@ def vis_all_grasps(pcd,cam_T_grasps_np):
 
 
 # Transformation from flange frame to hand palm framer
+# tf flange 2 palm
+# rosrun tf tf_echo /panda_link8 /palm_link_robotiq
+# At time 0.000
+# - Translation: [0.020, 0.000, 0.050]
+# - Rotation: in Quaternion [0.000, -0.707, -0.000, 0.707]
+#             in RPY (radian) [2.356, -1.571, -2.356]
+#             in RPY (degree) [135.000, -90.000, -135.000]
 
+flange_T_palm = np.array([[ 0.,  0., -1.,  0.020],
+                            [-0.,  1.,  0.,  0.],
+                            [ 1.,  0.,  0.,  0.050],
+                            [ 0.,  0.,  0.,  1.]])
 # camera
 save_path = '~/Downloads'
 logging.basicConfig(level=logging.INFO)
@@ -212,7 +223,16 @@ try:
                 # if transl[1] > -0.1:
                 #     continue
                 joint_conf = filtered_grasps_2['joint_conf'][j, :]
+                # palm in frame wrt center of obj pcd
                 palm_pose_centr = utils.hom_matrix_from_transl_rot_matrix(transl, rot_matrix)
+
+                # palm in frame wrt cam
+                cam_T_palm = utils.hom_matrix_from_transl_rot_matrix(transl+pc_center, rot_matrix)
+                base_T_palm = np.matmul(base_T_cam, cam_T_palm)
+                palm_T_flange=np.linalg.inv(flange_T_palm)
+                base_T_flange = np.matmul(base_T_palm, palm_T_flange)
+                print(base_T_flange)
+
                 visualization.show_grasp_and_object(obj_pcd_path, palm_pose_centr, joint_conf,
                                                     'meshes/robotiq_palm/robotiq-3f-gripper_articulated.urdf')
                 a = input('Break loop? (y/n): ')
