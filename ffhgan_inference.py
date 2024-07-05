@@ -1,6 +1,8 @@
 import sys
 import os
-
+import rospy
+from std_msgs.msg import String
+import tf
 from copy import deepcopy
 import numpy as np
 from scipy.spatial.transform import Rotation as R
@@ -22,6 +24,8 @@ from FFHNet.models.networks import FFHGAN
 from FFHNet.utils import utils, visualization, writer
 from FFHNet.utils.writer import Writer
 import bps_torch.bps as b_torch
+
+import tf.transformations
 # from bps_torch.utils import to_np
 # Add GraspInference to the path and import
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..','src'))
@@ -37,36 +41,6 @@ import zmq
 import numpy as np
 import open3d as o3d
 from time import time,sleep
-
-# context = zmq.Context()
-# socket = context.socket(zmq.REQ)
-# socket.connect("tcp://10.3.100.77:5561")
-# flags=0
-# track=False
-
-
-# def send_grasp(grasp_np):
-#     """
-#     obj_pcd_np in camera orientation but self centered.
-#     """
-
-#     info_seg = dict(
-#         grasp_np_dtype=str(grasp_np.dtype),
-#         ograsp_np_shape=grasp_np.shape,
-#     )
-#     start = time()
-#     socket.send_json(info_seg, flags | zmq.SNDMORE)
-#     socket.send_multipart([grasp_np], flags | zmq.SNDMORE, copy=True, track=track)
-
-#     # received_info_seg = socket.recv_json(flags=flags)
-#     # response_seg = socket.recv_multipart()
-
-#     # print('run ffhnet takes', time()-start)
-#     # grasp_poses_buffer = memoryview(response_seg[1])
-#     # grasp_poses = np.frombuffer(grasp_poses_buffer, dtype=received_info_seg["grasp_poses_dtype"]).reshape(received_info_seg["grasp_poses_shape"])
-#     # print("The reply is: ", grasp_poses.shape)
-
-#     return True
 
 
 def vis_all_grasps(pcd,cam_T_grasps_np):
@@ -86,6 +60,10 @@ def vis_all_grasps(pcd,cam_T_grasps_np):
         vis.add_geometry(f)
     vis.run()
 
+def divide_into_trans_quat(base_T_flange):
+    flange_quat = tf.transformations.quaternion_from_matrix(base_T_flange)
+    flange_trans = base_T_flange[:3,-1]
+    return flange_trans, flange_quat
 
 # Transformation from flange frame to hand palm framer
 # tf flange 2 palm
@@ -101,7 +79,7 @@ flange_T_palm = np.array([[ 0.,  0., -1.,  0.020],
                             [ 1.,  0.,  0.,  0.050],
                             [ 0.,  0.,  0.,  1.]])
 # camera
-save_path = '~/Downloads'
+save_path = '/workspaces/inference_container/exp_images/'
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
 rs = RealSense(logger, save_path)
@@ -109,14 +87,14 @@ segment = PlaneSegmentation()
 
 grasp_region_mask = np.zeros((720,1280),dtype=np.bool)
 # grasp_region_mask[150:420, 150:600] = True  # single obj
-grasp_region_mask[280:480, 650:950] = True  # cupboard grasping
+grasp_region_mask[200:630, 530:930] = True  # cupboard grasping
 
 base_T_cam = np.array([[ 0.99993021, -0.00887332 ,-0.00779972 , 0.31846705],
                     [ 0.00500804, -0.2795885  , 0.96010686 ,-1.10184744],
                     [-0.01070005, -0.96007892 ,-0.27952455 , 0.50819482],
                     [ 0.        ,  0.         , 0.          ,1.        ]])
 
-inter_offset = np.array([0.15, 0, 0])
+inter_offset = np.array([0.16, 0, 0])
 ROOT_PATH = os.path.dirname(os.path.abspath(__file__))
 BASE_PATH = os.path.split(os.path.split(ROOT_PATH)[0])[0]
 parser = argparse.ArgumentParser()
@@ -154,23 +132,22 @@ bps_path = './basis_point_set.npy'
 bps_np = np.load(bps_path)
 bps = b_torch.bps_torch(custom_basis=bps_np)
 
-
+grasp_pub = rospy.Publisher('goal_pick_pose', String, queue_size=10)
+rospy.init_node('pose_pub')
+rate = rospy.Rate(10) # 10hz
 # i = int(input('i=?'))
+i = 0
 try:
     while True:
         color_image, depth_image, pcd, _ = rs.capture_image()
-        rs.visualize_color(color_image)
-        rs.visualize_depth(depth_image)
-        pcd_raw = deepcopy(pcd)
-        pcd_raw = rs.point_cloud_distance_removal_by_input(pcd_raw)
-        k = cv2.waitKey(0)
-        if k == 27:
-            cv2.destroyAllWindows()
+        # rs.visualize_color(color_image)
+        # rs.visualize_depth(depth_image)
 
         pcd = segment.crop_pcd_with_bbox(pcd, grasp_region_mask)
+        # rs.visualize_pcd(pcd)
         pcd = rs.point_cloud_distance_removal(pcd)
         obj_pcd, normal_vector = segment.plane_seg_with_angle_constrain(pcd)
-        # rs.save_images(i, color_image, depth_image, pcd, obj_pcd)
+        rs.save_images(i, color_image, depth_image, pcd, obj_pcd)
 
         # crop depth in robot base with z > 0
         crop_pcd = copy.deepcopy(obj_pcd).transform(base_T_cam)
@@ -184,7 +161,7 @@ try:
         obj_pcd_cam = deepcopy(obj_pcd)
 
         ####################### Run Inference  ##############
-        pcd_base = copy.deepcopy(pcd_raw).transform(base_T_cam)
+        # pcd_base = copy.deepcopy(pcd_raw).transform(base_T_cam)
         obj_pcd_np = np.asarray(obj_pcd.points)
         pcd_np = np.asarray(pcd.points)
         pc_center = obj_pcd.get_center()
@@ -224,27 +201,58 @@ try:
             # palm in frame wrt center of obj pcd
             palm_pose_centr = utils.hom_matrix_from_transl_rot_matrix(transl, rot_matrix)
 
+            #### Pick pose for flange:####
             # palm in frame wrt cam
             cam_T_palm = utils.hom_matrix_from_transl_rot_matrix(transl+pc_center, rot_matrix)
             base_T_palm = np.matmul(base_T_cam, cam_T_palm)
+
             palm_T_flange=np.linalg.inv(flange_T_palm)
             base_T_flange = np.matmul(base_T_palm, palm_T_flange)
+
+            ##### Intermediate pose for flange: ######
+            base_T_palm_inter = np.eye(4)
+            base_T_palm_inter[:3,-1] = base_T_palm[:3,-1] - base_T_palm[:3,:3] @ inter_offset
+            base_T_palm_inter[:3,:3] = base_T_palm[:3,:3]
+            base_T_flange_inter = np.matmul(base_T_palm_inter, palm_T_flange)
+
+            print(base_T_flange_inter)
             print(base_T_flange)
-            np.save('./base2flange_inferred.npy',base_T_flange)
+
+            #### Decompose and send poses:
+            flange_trans_inter, flange_quat_inter = divide_into_trans_quat(base_T_flange_inter)
+            flange_trans_pick, flange_quat_pick = divide_into_trans_quat(base_T_flange)
+
+            pick_goals_dict = {
+                "inter":{
+                    "position": {"x": flange_trans_inter[0], "y": flange_trans_inter[1], "z": flange_trans_inter[2]},
+                    "orientation": {"x": flange_quat_inter[0], "y": flange_quat_inter[1], "z": flange_quat_inter[2], "w": flange_quat_inter[3]}
+                },
+
+                "pick":{
+                    "position": {"x": flange_trans_pick[0], "y": flange_trans_pick[1], "z": flange_trans_pick[2]},
+                    "orientation": {"x": flange_quat_pick[0], "y": flange_quat_pick[1], "z": flange_quat_pick[2], "w": flange_quat_pick[3]}
+                }
+            }
+
+            grasp_pub.publish(str(pick_goals_dict))
+            rate.sleep()
+
+            np.save("./base2flange_inferred.npy",base_T_flange)
 
             visualization.show_grasp_and_object(obj_pcd_path, palm_pose_centr, joint_conf,
                                                 'meshes/robotiq_palm/robotiq-3f-gripper_articulated.urdf')
+            #### send grasp to local pc
             a = input('Break loop? (y/n): ')
             if a == 'y':
                 break
+        # send_grasp(base_T_flange)
+        print('got reply fro zeromq')
+
         # # TODO: add inference locally
         # # cam_T_grasps_np = send_pcd(obj_pcd_np,pcd_np)
-        # print('got reply fro zeromq')
 
         # # vis_all_grasps(pcd_raw,cam_T_grasps_np)
-
-        # ##### send grasp to local pc
-        # # send_grasp(cam_T_grasps_np)
+        i += 1
 
 except KeyboardInterrupt:
     print('something broke')

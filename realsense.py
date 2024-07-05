@@ -44,8 +44,8 @@ class RealSense():
         # We will be removing the background of objects more than
         #  clipping_distance_in_meters meters away
 
-        self.clipping_distance_max = 1.2  # 1.0 single objecg
-        self.clipping_distance_min = 0.8
+        self.clipping_distance_max = 1.0  # 1.0 single objecg
+        self.clipping_distance_min = 0.6
         # Create an align object
         # rs.align allows us to perform alignment of depth frames to others frames
         # The "align_to" is the stream type to which we plan to align depth frames.
@@ -121,20 +121,6 @@ class RealSense():
 
         new_pcd_np2 = new_pcd_np[new_pcd_np[:, 2] > self.clipping_distance_min]
         new_pcd_colors_np2 = new_pcd_colors_np[new_pcd_np[:, 2] > self.clipping_distance_min]
-
-        new_pcd = o3d.geometry.PointCloud()
-        new_pcd.points = o3d.utility.Vector3dVector(new_pcd_np2)
-        new_pcd.colors = o3d.utility.Vector3dVector(new_pcd_colors_np2)
-        return new_pcd
-
-    def point_cloud_distance_removal_by_input(self, pcd, min=0.2,max=1.2):
-        pcd_np = np.asarray(pcd.points)
-        pcd_colors_np = np.asarray(pcd.colors)
-        new_pcd_np = pcd_np[pcd_np[:, 2] < max]
-        new_pcd_colors_np = pcd_colors_np[pcd_np[:, 2] < max]
-
-        new_pcd_np2 = new_pcd_np[new_pcd_np[:, 2] > min]
-        new_pcd_colors_np2 = new_pcd_colors_np[new_pcd_np[:, 2] > min]
 
         new_pcd = o3d.geometry.PointCloud()
         new_pcd.points = o3d.utility.Vector3dVector(new_pcd_np2)

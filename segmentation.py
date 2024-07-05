@@ -58,7 +58,7 @@ def rotation_matrix_from_vectors(vec1, vec2):
 
 # parameteres
 remove_statistical_outlier = True
-vis = True
+vis = False
 # If detected plane has normal with more than 45 deg compared to camera z axis.
 plane_normal_threshold = 45
 
@@ -109,7 +109,7 @@ class PlaneSegmentation():
             # return None, None
         inlier_cloud = pcd.select_by_index(inliers)
         outlier_cloud = pcd.select_by_index(inliers, invert=True)
-
+        vis = True
         if vis:
             inlier_cloud.paint_uniform_color([1.0, 0, 0])
             o3d.visualization.draw_geometries([inlier_cloud, outlier_cloud])
