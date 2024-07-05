@@ -180,30 +180,32 @@ try:
         # # # Visualize sampled distribution
         obj_pcd_path = './obj.pcd'
         o3d.io.write_point_cloud(obj_pcd_path, obj_pcd)
-        visualization.show_generated_grasp_distribution(obj_pcd_path, grasps)
-        filtered_grasps_2 = ffhgan.filter_grasps(enc_np, grasps, thresh=0.90)
+        # visualization.show_generated_grasp_distribution(obj_pcd_path, grasps)
+        filtered_grasps_2 = ffhgan.filter_grasps(enc_np, grasps, thresh=0.80)
         n_grasps_filt_2 = filtered_grasps_2['rot_matrix'].shape[0]
 
         print("n_grasps after filtering: %d" % n_grasps_filt_2)
         print("This means %.2f of grasps pass the filtering" % (n_grasps_filt_2 / 400))
 
         # Visulize filtered distribution
-        visualization.show_generated_grasp_distribution(obj_pcd_path, filtered_grasps_2)
+        # visualization.show_generated_grasp_distribution(obj_pcd_path, filtered_grasps_2)
 
-    
-        for j in range(n_grasps_filt_2):
-            # Get the grasp sample
-            rot_matrix = filtered_grasps_2['rot_matrix'][j, :, :]
-            transl = filtered_grasps_2['transl'][j, :]
-            # if transl[1] > -0.1:
-            #     continue
-            joint_conf = filtered_grasps_2['joint_conf'][j, :]
-            # palm in frame wrt center of obj pcd
-            palm_pose_centr = utils.hom_matrix_from_transl_rot_matrix(transl, rot_matrix)
+        # for j in range(n_grasps_filt_2):
+        # Get the grasp sample
+        NUM_GRASP = 10
+        rot_matrix = filtered_grasps_2['rot_matrix'][:NUM_GRASP, :, :]
+        transl = filtered_grasps_2['transl'][:NUM_GRASP, :]
+        # if transl[1] > -0.1:
+        #     continue
+        joint_conf = filtered_grasps_2['joint_conf'][:NUM_GRASP, :]
+        # palm in frame wrt center of obj pcd
 
-            #### Pick pose for flange:####
-            # palm in frame wrt cam
-            cam_T_palm = utils.hom_matrix_from_transl_rot_matrix(transl+pc_center, rot_matrix)
+        #### Pick pose for flange:####
+        # palm in frame wrt cam
+        grasps  = {}
+        for j in range(NUM_GRASP):
+
+            cam_T_palm = utils.hom_matrix_from_transl_rot_matrix(transl[j]+pc_center, rot_matrix[j])
             base_T_palm = np.matmul(base_T_cam, cam_T_palm)
 
             palm_T_flange=np.linalg.inv(flange_T_palm)
@@ -233,18 +235,19 @@ try:
                     "orientation": {"x": flange_quat_pick[0], "y": flange_quat_pick[1], "z": flange_quat_pick[2], "w": flange_quat_pick[3]}
                 }
             }
+            grasps[str(j)] = pick_goals_dict
+        
+        grasp_pub.publish(str(grasps))
+        rate.sleep()
 
-            grasp_pub.publish(str(pick_goals_dict))
-            rate.sleep()
+        np.save("./base2flange_inferred.npy",base_T_flange)
 
-            np.save("./base2flange_inferred.npy",base_T_flange)
-
-            visualization.show_grasp_and_object(obj_pcd_path, palm_pose_centr, joint_conf,
-                                                'meshes/robotiq_palm/robotiq-3f-gripper_articulated.urdf')
-            #### send grasp to local pc
-            a = input('Break loop? (y/n): ')
-            if a == 'y':
-                break
+        # visualization.show_grasp_and_object(obj_pcd_path, palm_pose_centr, joint_conf,
+        #                                     'meshes/robotiq_palm/robotiq-3f-gripper_articulated.urdf')
+        #### send grasp to local pc
+        a = input('Break loop? (y/n): ')
+        if a == 'y':
+            break
         # send_grasp(base_T_flange)
         print('got reply fro zeromq')
 
@@ -259,3 +262,73 @@ except KeyboardInterrupt:
 # finally:
 #     socket.close()
 #     context.term()
+
+
+#         for j in range(n_grasps_filt_2):
+#             # Get the grasp sample
+#             rot_matrix = filtered_grasps_2['rot_matrix'][j, :, :]
+#             transl = filtered_grasps_2['transl'][j, :]
+#             # if transl[1] > -0.1:
+#             #     continue
+#             joint_conf = filtered_grasps_2['joint_conf'][j, :]
+#             # palm in frame wrt center of obj pcd
+#             palm_pose_centr = utils.hom_matrix_from_transl_rot_matrix(transl, rot_matrix)
+
+#             #### Pick pose for flange:####
+#             # palm in frame wrt cam
+#             cam_T_palm = utils.hom_matrix_from_transl_rot_matrix(transl+pc_center, rot_matrix)
+#             base_T_palm = np.matmul(base_T_cam, cam_T_palm)
+
+#             palm_T_flange=np.linalg.inv(flange_T_palm)
+#             base_T_flange = np.matmul(base_T_palm, palm_T_flange)
+
+#             ##### Intermediate pose for flange: ######
+#             base_T_palm_inter = np.eye(4)
+#             base_T_palm_inter[:3,-1] = base_T_palm[:3,-1] - base_T_palm[:3,:3] @ inter_offset
+#             base_T_palm_inter[:3,:3] = base_T_palm[:3,:3]
+#             base_T_flange_inter = np.matmul(base_T_palm_inter, palm_T_flange)
+
+#             print(base_T_flange_inter)
+#             print(base_T_flange)
+
+#             #### Decompose and send poses:
+#             flange_trans_inter, flange_quat_inter = divide_into_trans_quat(base_T_flange_inter)
+#             flange_trans_pick, flange_quat_pick = divide_into_trans_quat(base_T_flange)
+
+#             pick_goals_dict = {
+#                 "inter":{
+#                     "position": {"x": flange_trans_inter[0], "y": flange_trans_inter[1], "z": flange_trans_inter[2]},
+#                     "orientation": {"x": flange_quat_inter[0], "y": flange_quat_inter[1], "z": flange_quat_inter[2], "w": flange_quat_inter[3]}
+#                 },
+
+#                 "pick":{
+#                     "position": {"x": flange_trans_pick[0], "y": flange_trans_pick[1], "z": flange_trans_pick[2]},
+#                     "orientation": {"x": flange_quat_pick[0], "y": flange_quat_pick[1], "z": flange_quat_pick[2], "w": flange_quat_pick[3]}
+#                 }
+#             }
+
+#             grasp_pub.publish(str(pick_goals_dict))
+#             rate.sleep()
+
+#             np.save("./base2flange_inferred.npy",base_T_flange)
+
+#             visualization.show_grasp_and_object(obj_pcd_path, palm_pose_centr, joint_conf,
+#                                                 'meshes/robotiq_palm/robotiq-3f-gripper_articulated.urdf')
+#             #### send grasp to local pc
+#             a = input('Break loop? (y/n): ')
+#             if a == 'y':
+#                 break
+#         # send_grasp(base_T_flange)
+#         print('got reply fro zeromq')
+
+#         # # TODO: add inference locally
+#         # # cam_T_grasps_np = send_pcd(obj_pcd_np,pcd_np)
+
+#         # # vis_all_grasps(pcd_raw,cam_T_grasps_np)
+#         i += 1
+
+# except KeyboardInterrupt:
+#     print('something broke')
+# # finally:
+# #     socket.close()
+# #     context.term()
