@@ -20,10 +20,7 @@ class TFBroadcaster:
                                     [0., 0., 0., 1.]])
         
         self.cartesian_pose = None
-        self.inferred_pose = np.array([[0.64438732, -0.1737258,  -0.74470421,  0.6172552],
-                                        [ -0.72986569, -0.43030012, -0.53116651,  0.03628537],
-                                        [-0.228169,    0.88581105, -0.40407643,  0.3199517],
-                                        [ 0.,          0. ,         0. ,         1.        ]])
+        self.inferred_pose = None
         # TODO: grasp_pos_inter_palm = np.eye(4)
         # grasp_pos_inter_palm[:3,-1] = base_T_palm_np[:3,-1] - base_T_palm_np[:3,:3] @ inter_offset
         # grasp_pos_inter_palm[:3,:3] = base_T_palm_np[:3,:3]
@@ -38,10 +35,12 @@ class TFBroadcaster:
         self.broadcast_iiwa_transform()
         self.broadcast_grasp_transform()
 
-    def update_inferred_pose_tf(self, inferred_pose):
-        self.inferred_pose = inferred_pose
+    def update_inferred_pose_tf(self):
+        
+        self.inferred_pose = np.load('./base2flange_inferred.npy')
 
     def broadcast_grasp_transform(self):
+        self.update_inferred_pose_tf()
         if self.inferred_pose is not None:
             t = geometry_msgs.msg.TransformStamped()
 

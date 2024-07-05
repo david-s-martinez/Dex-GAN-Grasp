@@ -155,7 +155,7 @@ bps_np = np.load(bps_path)
 bps = b_torch.bps_torch(custom_basis=bps_np)
 
 
-i = int(input('i=?'))
+# i = int(input('i=?'))
 try:
     while True:
         color_image, depth_image, pcd, _ = rs.capture_image()
@@ -163,11 +163,9 @@ try:
         rs.visualize_depth(depth_image)
         pcd_raw = deepcopy(pcd)
         pcd_raw = rs.point_cloud_distance_removal_by_input(pcd_raw)
-        cv2.imshow("Display window", color_image)
-        k = cv2.waitKey(1)
-        print(f'get {i}th frame')
+        k = cv2.waitKey(0)
         if k == 27:
-            break
+            cv2.destroyAllWindows()
 
         pcd = segment.crop_pcd_with_bbox(pcd, grasp_region_mask)
         pcd = rs.point_cloud_distance_removal(pcd)
@@ -215,29 +213,30 @@ try:
         # Visulize filtered distribution
         visualization.show_generated_grasp_distribution(obj_pcd_path, filtered_grasps_2)
 
-        if True:
-            for j in range(n_grasps_filt_2):
-                # Get the grasp sample
-                rot_matrix = filtered_grasps_2['rot_matrix'][j, :, :]
-                transl = filtered_grasps_2['transl'][j, :]
-                # if transl[1] > -0.1:
-                #     continue
-                joint_conf = filtered_grasps_2['joint_conf'][j, :]
-                # palm in frame wrt center of obj pcd
-                palm_pose_centr = utils.hom_matrix_from_transl_rot_matrix(transl, rot_matrix)
+    
+        for j in range(n_grasps_filt_2):
+            # Get the grasp sample
+            rot_matrix = filtered_grasps_2['rot_matrix'][j, :, :]
+            transl = filtered_grasps_2['transl'][j, :]
+            # if transl[1] > -0.1:
+            #     continue
+            joint_conf = filtered_grasps_2['joint_conf'][j, :]
+            # palm in frame wrt center of obj pcd
+            palm_pose_centr = utils.hom_matrix_from_transl_rot_matrix(transl, rot_matrix)
 
-                # palm in frame wrt cam
-                cam_T_palm = utils.hom_matrix_from_transl_rot_matrix(transl+pc_center, rot_matrix)
-                base_T_palm = np.matmul(base_T_cam, cam_T_palm)
-                palm_T_flange=np.linalg.inv(flange_T_palm)
-                base_T_flange = np.matmul(base_T_palm, palm_T_flange)
-                print(base_T_flange)
+            # palm in frame wrt cam
+            cam_T_palm = utils.hom_matrix_from_transl_rot_matrix(transl+pc_center, rot_matrix)
+            base_T_palm = np.matmul(base_T_cam, cam_T_palm)
+            palm_T_flange=np.linalg.inv(flange_T_palm)
+            base_T_flange = np.matmul(base_T_palm, palm_T_flange)
+            print(base_T_flange)
+            np.save('./base2flange_inferred.npy',base_T_flange)
 
-                visualization.show_grasp_and_object(obj_pcd_path, palm_pose_centr, joint_conf,
-                                                    'meshes/robotiq_palm/robotiq-3f-gripper_articulated.urdf')
-                a = input('Break loop? (y/n): ')
-                if a == 'y':
-                    break
+            visualization.show_grasp_and_object(obj_pcd_path, palm_pose_centr, joint_conf,
+                                                'meshes/robotiq_palm/robotiq-3f-gripper_articulated.urdf')
+            a = input('Break loop? (y/n): ')
+            if a == 'y':
+                break
         # # TODO: add inference locally
         # # cam_T_grasps_np = send_pcd(obj_pcd_np,pcd_np)
         # print('got reply fro zeromq')
