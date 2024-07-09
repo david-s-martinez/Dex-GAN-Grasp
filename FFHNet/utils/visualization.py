@@ -336,6 +336,7 @@ def show_generated_grasp_distribution(pcd_path,
                                       grasps,
                                       highlight_idx=-1,
                                       custom_vis=True,
+                                      mean_coord=False,
                                       save_ix=0):
     """Visualizes the object point cloud together with the generated grasp distribution.
 
@@ -358,6 +359,10 @@ def show_generated_grasp_distribution(pcd_path,
                 palm_pose_centr)
         frames.append(frame)
 
+    if mean_coord is not False:
+        origin_mean = o3d.geometry.TriangleMesh.create_coordinate_frame(0.2).translate(
+                mean_coord.reshape(3,))
+        frames.append(origin_mean)
     # visualize
     ## If you want to add origin, this
     # orig = o3d.geometry.TriangleMesh.create_coordinate_frame(0.001)

@@ -20,23 +20,20 @@ from FFHNet.data.ffhevaluator_data_set import (FFHEvaluatorDataSet,
                                                FFHEvaluatorPCDDataSet)
 from FFHNet.data.ffhgenerator_data_set import FFHGeneratorDataSet
 from FFHNet.models.ffhgan import FFHGANet
-from FFHNet.models.ffhnet import FFHNet
 from FFHNet.models.networks import FFHGAN
 from FFHNet.utils import utils, visualization, writer
 from FFHNet.utils.writer import Writer
 import bps_torch.bps as b_torch
-from vlpart.LMP import run_lmp
 
 import tf.transformations
 # from bps_torch.utils import to_np
 # Add GraspInference to the path and import
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..','src'))
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
-sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..','vlpart'))
 
 from segmentation import PlaneSegmentation
 from realsense import RealSense
-from FFHNet.utils.filter_grasps_given_mask import filter_grasps_given_mask, sort_grasps
+
 # Data collection
 # from ffhflow_grasp_viewer import show_grasp_and_object_given_pcd
 
@@ -91,10 +88,6 @@ segment = PlaneSegmentation()
 grasp_region_mask = np.zeros((720,1280),dtype=np.bool)
 # grasp_region_mask[150:420, 150:600] = True  # single obj
 grasp_region_mask[200:630, 530:930] = True  # cupboard grasping
-mask_shape = (430,400,3)
-# for bigger item
-# grasp_region_mask[200:720, 430:1030] = True  # cupboard grasping
-# mask_shape = (520,600,3)
 
 base_T_cam = np.array([[ 0.99993021, -0.00887332 ,-0.00779972 , 0.31846705],
                     [ 0.00500804, -0.2795885  , 0.96010686 ,-1.10184744],
@@ -105,18 +98,13 @@ inter_offset = np.array([0.16, 0, 0])
 ROOT_PATH = os.path.dirname(os.path.abspath(__file__))
 BASE_PATH = os.path.split(os.path.split(ROOT_PATH)[0])[0]
 parser = argparse.ArgumentParser()
-
 # # Best VAE so far:
-gen_path = "checkpoints/ffhnet/ffhgenerator_bs5012"
-best_epoch = 30
+# gen_path = "checkpoints/ffhnet/2023-09-01T01_16_11_ffhnet_lr_0.0001_bs_1000"
+# best_epoch = 24
 
 # Best GAN so far:
-# gen_path = "checkpoints/ffhgan/2024-03-10T17_31_55_ffhgan_lr_0.0001_bs_1000"
-# best_epoch = 32
-
-# gen_path = "checkpoints/ffhgan/2024-03-15T15_20_19_ffhgan_lr_0.0001_bs_1000"
-# best_epoch = 63
-
+gen_path = "checkpoints/ffhgan/2024-03-10T17_31_55_ffhgan_lr_0.0001_bs_1000"
+best_epoch = 32
 parser.add_argument('--gen_path', default=gen_path, help='path to FFHGenerator model')
 parser.add_argument('--load_gen_epoch', type=int, default=best_epoch, help='epoch of FFHGenerator model')
 # New evaluator:checkpoints/ffhevaluator/2024-06-23_ffhevaluator
@@ -133,14 +121,11 @@ load_epoch_eva = args.load_eva_epoch
 config_path = args.config
 config = Config(config_path)
 cfg = config.parse()
-if 'ffhgan' in gen_path:
-    model = FFHGANet(cfg)
-else:
-    model = FFHNet(cfg)
-# print(model)
+ffhgan = FFHGANet(cfg)
+print(ffhgan)
 base_data_bath = os.path.join(ROOT_PATH,'data','real_objects')
-model.load_ffhgenerator(epoch=load_epoch_gen, load_path=load_path_gen)
-model.load_ffhevaluator(epoch=load_epoch_eva, load_path=load_path_eva)
+ffhgan.load_ffhgenerator(epoch=load_epoch_gen, load_path=load_path_gen)
+ffhgan.load_ffhevaluator(epoch=load_epoch_eva, load_path=load_path_eva)
 path_real_objs_bps = os.path.join(base_data_bath, 'bps')
 
 bps_path = './basis_point_set.npy'
@@ -150,32 +135,19 @@ bps = b_torch.bps_torch(custom_basis=bps_np)
 grasp_pub = rospy.Publisher('goal_pick_pose', String, queue_size=10)
 rospy.init_node('pose_pub')
 rate = rospy.Rate(10) # 10hz
-i = int(input('i=?'))
-# i = 0
+# i = int(input('i=?'))
+i = 0
 try:
     while True:
-        # while loop to try LLM VLM 
-        while True:
-            try:
-                color_image, depth_image, pcd, _ = rs.capture_image()
-                # rs.visualize_color(color_image)
-                # rs.visualize_depth(depth_image)
+        color_image, depth_image, pcd, _ = rs.capture_image()
+        # rs.visualize_color(color_image)
+        # rs.visualize_depth(depth_image)
 
-                pcd = segment.crop_pcd_with_bbox(pcd, grasp_region_mask)
-                object_part_pcd = deepcopy(pcd)
-                # rs.visualize_pcd(pcd)
-                pcd = rs.point_cloud_distance_removal(pcd)
-                obj_pcd, normal_vector = segment.plane_seg_with_angle_constrain(pcd)
-                rs.save_images(i, color_image, depth_image, pcd, obj_pcd)
-
-                ########## RUN LLM VLM ###########
-                color_name = 'color_' + str(i).zfill(4) + '.png'
-                color2save = os.path.join(save_path, color_name)
-                run_lmp(color2save)
-            except Exception:
-                continue
-            else:
-                break
+        pcd = segment.crop_pcd_with_bbox(pcd, grasp_region_mask)
+        # rs.visualize_pcd(pcd)
+        pcd = rs.point_cloud_distance_removal(pcd)
+        obj_pcd, normal_vector = segment.plane_seg_with_angle_constrain(pcd)
+        rs.save_images(i, color_image, depth_image, pcd, obj_pcd)
 
         # crop depth in robot base with z > 0
         crop_pcd = copy.deepcopy(obj_pcd).transform(base_T_cam)
@@ -202,25 +174,14 @@ try:
 
         enc_np = enc_dict['dists'].cpu().detach().numpy()
 
-        grasps = model.generate_grasps(enc_np, n_samples=400, return_arr=True)
-        # print(grasps)
-
-        vis_grasps = deepcopy(grasps)
-        #### For test base grasping ####
-        # grasps in object point cloud center 
-        obj_pcd_path = './obj.pcd'
-        o3d.io.write_point_cloud(obj_pcd_path, obj_pcd)
-
-        part_pcd_np = np.asarray(object_part_pcd.points)
-        sorted_grasp_indices, part_mean = filter_grasps_given_mask(grasps, part_pcd_np, mask_shape, color2save, pc_center)
-        grasps = sort_grasps(grasps, sorted_grasp_indices, sort_num=30)
-
-        visualization.show_generated_grasp_distribution(obj_pcd_path, vis_grasps, mean_coord=part_mean)
-        visualization.show_generated_grasp_distribution(obj_pcd_path, grasps,mean_coord=part_mean)
+        grasps = ffhgan.generate_grasps(enc_np, n_samples=400, return_arr=True)
+        print(grasps)
 
         # # # Visualize sampled distribution
+        obj_pcd_path = './obj.pcd'
+        o3d.io.write_point_cloud(obj_pcd_path, obj_pcd)
         # visualization.show_generated_grasp_distribution(obj_pcd_path, grasps)
-        filtered_grasps_2 = model.filter_grasps(enc_np, grasps, thresh=-1)
+        filtered_grasps_2 = ffhgan.filter_grasps(enc_np, grasps, thresh=0.80)
         n_grasps_filt_2 = filtered_grasps_2['rot_matrix'].shape[0]
 
         print("n_grasps after filtering: %d" % n_grasps_filt_2)
@@ -265,12 +226,12 @@ try:
 
             pick_goals_dict = {
                 "inter":{
-                    "position": {"x": flange_trans_inter[0], "y": flange_trans_inter[1], "z": flange_trans_inter[2]+0.05},
+                    "position": {"x": flange_trans_inter[0], "y": flange_trans_inter[1], "z": flange_trans_inter[2]},
                     "orientation": {"x": flange_quat_inter[0], "y": flange_quat_inter[1], "z": flange_quat_inter[2], "w": flange_quat_inter[3]}
                 },
 
                 "pick":{
-                    "position": {"x": flange_trans_pick[0], "y": flange_trans_pick[1], "z": flange_trans_pick[2]+0.05},
+                    "position": {"x": flange_trans_pick[0], "y": flange_trans_pick[1], "z": flange_trans_pick[2]},
                     "orientation": {"x": flange_quat_pick[0], "y": flange_quat_pick[1], "z": flange_quat_pick[2], "w": flange_quat_pick[3]}
                 }
             }
