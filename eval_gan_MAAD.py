@@ -282,7 +282,7 @@ if __name__ == '__main__':
         # best_epoch = 32
         gen_path = "checkpoints/ffhgan/2024-03-15T15_20_19_ffhgan_lr_0.0001_bs_1000"
         best_epoch = 63
-        
+
         parser.add_argument('--gen_path', default=gen_path, help='path to FFHGenerator model')
         parser.add_argument('--load_gen_epoch', type=int, default=best_epoch, help='epoch of FFHGenerator model')
 
@@ -308,7 +308,7 @@ if __name__ == '__main__':
         # with open(load_path_gen + '_metrics.csv', 'w') as file:
         #     writer = csv.writer(file)
         #     writer.writerow(["epoch", "transl_loss_sum", "rot_loss_sum", "joint_loss_sum", "coverage_mean"])
-        #     for epoch in range(1,53,1):
+        #     for epoch in range(3,93,3):
         #         print('Evaluating epoch:',epoch)
         #         load_epoch_gen = epoch
         #         transl_loss_sum, rot_loss_sum, joint_loss_sum, coverage_mean = main(config_path, load_epoch_gen, load_path_gen, is_gan = is_gan, show_individual_grasps = False)
