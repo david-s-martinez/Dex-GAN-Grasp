@@ -534,11 +534,15 @@ def eval_eva_acc_multiple_epochs(epochs, path):
 
 if __name__ == "__main__":
 
+    gen_path = "checkpoints/ffhnet/ffhgenerator_bs5012"
+    best_epoch = 30
+
     parser = argparse.ArgumentParser()
     # parser.add_argument('--gen_path', default='models/ffhgenerator', help='path to FFHGenerator model')
-    parser.add_argument('--gen_path', default='checkpoints/ffhnet/2023-09-01T01_16_11_ffhnet_lr_0.0001_bs_1000', help='path to FFHGenerator model')
-    parser.add_argument('--load_gen_epoch', type=int, default=24, help='epoch of FFHGenerator model')
-    parser.add_argument('--eva_path', default='models/ffhevaluator', help='path to FFHEvaluator model')
+    parser.add_argument('--gen_path', default=gen_path, help='path to FFHGenerator model')
+    parser.add_argument('--load_gen_epoch', type=int, default=best_epoch, help='epoch of FFHGenerator model')
+    parser.add_argument('--eva_path', default='checkpoints/ffhevaluator/2024-06-23_ffhevaluator', help='path to FFHEvaluator model')
+    # parser.add_argument('--eva_path', default='models/ffhevaluator', help='path to FFHEvaluator model')
     parser.add_argument('--load_eva_epoch', type=int, default=30, help='epoch of FFHEvaluator model')
     parser.add_argument('--config', type=str, default='FFHNet/config/config_ffhnet_yb.yaml')
     # parser.add_argument('--config', type=str, default='FFHNet/config/config_ffhgan.yaml')

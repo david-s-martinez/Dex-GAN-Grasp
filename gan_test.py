@@ -24,6 +24,44 @@ parser.add_argument('--config', help='Path to template image.',
                     default='FFHNet/config/config_ffhnet_vm_debug.yaml')
 args = parser.parse_args()
 
+def filter(ffhgan, obj_pcd_path, obj_bps, grasps, n_samples, is_discriminator = False, thresh_succ_list = [0.5, 0.75, 0.90] ):
+    if is_discriminator:
+        filter_func = ffhgan.filter_grasps_discriminator
+    else:
+        filter_func = ffhgan.filter_grasps
+
+    ############### Stage 1 ################
+    # Reject grasps with low probability
+    filtered_grasps = filter_func(obj_bps, grasps, thresh=thresh_succ_list[0])
+    n_grasps_filt = filtered_grasps['rot_matrix'].shape[0]
+
+    print("n_grasps after filtering: %d" % n_grasps_filt)
+    print("This means %.2f of grasps pass the filtering" % (n_grasps_filt / n_samples))
+
+    # Visulize filtered distribution
+    visualization.show_generated_grasp_distribution(obj_pcd_path, filtered_grasps)
+
+    ############### Stage 2 ################
+    # Reject grasps with low probability
+    filtered_grasps_1 = filter_func(obj_bps, grasps, thresh=thresh_succ_list[1])
+    n_grasps_filt_1 = filtered_grasps_1['rot_matrix'].shape[0]
+
+    print("n_grasps after filtering: %d" % n_grasps_filt_1)
+    print("This means %.2f of grasps pass the filtering" % (n_grasps_filt_1 / n_samples))
+
+    # Visulize filtered distribution
+    visualization.show_generated_grasp_distribution(obj_pcd_path, filtered_grasps_1)
+
+    ############## Stage 3 ################
+    # Reject grasps with low probability
+    filtered_grasps_2 = filter_func(obj_bps, grasps, thresh=thresh_succ_list[2])
+    n_grasps_filt_2 = filtered_grasps_2['rot_matrix'].shape[0]
+
+    print("n_grasps after filtering: %d" % n_grasps_filt_2)
+    print("This means %.2f of grasps pass the filtering" % (n_grasps_filt_2 / n_samples))
+
+    return filtered_grasps_2 , n_grasps_filt_2
+    
 def eval_ffhnet_sampling_and_filtering_real(config_path,
                                             load_epoch_eva,
                                             load_epoch_gen,
@@ -31,7 +69,9 @@ def eval_ffhnet_sampling_and_filtering_real(config_path,
                                             load_path_gen,
                                             n_samples=1000,
                                             thresh_succ=0.5,
-                                            show_individual_grasps=False):
+                                            show_individual_grasps=False,
+                                            thresh_succ_list = [0.5, 0.75, 0.90],
+                                            is_discriminator = False):
     config = Config(config_path)
     cfg = config.parse()
     ffhgan = FFHGANet(cfg)
@@ -55,32 +95,15 @@ def eval_ffhnet_sampling_and_filtering_real(config_path,
         # Visualize sampled distribution
         visualization.show_generated_grasp_distribution(obj_pcd_path, grasps)
 
-        ############### Stage 1 ################
-        # Reject grasps with low probability
-        filtered_grasps = ffhgan.filter_grasps(obj_bps, grasps, thresh=thresh_succ)
-        n_grasps_filt = filtered_grasps['rot_matrix'].shape[0]
-
-        print("n_grasps after filtering: %d" % n_grasps_filt)
-        print("This means %.2f of grasps pass the filtering" % (n_grasps_filt / n_samples))
-
-        # Visulize filtered distribution
-        visualization.show_generated_grasp_distribution(obj_pcd_path, filtered_grasps)
-
-        ############### Stage 2 ################
-        # Reject grasps with low probability
-        filtered_grasps_1 = ffhgan.filter_grasps(obj_bps, grasps, thresh=0.75)
-        n_grasps_filt_1 = filtered_grasps_1['rot_matrix'].shape[0]
-
-        print("n_grasps after filtering: %d" % n_grasps_filt_1)
-        print("This means %.2f of grasps pass the filtering" % (n_grasps_filt_1 / n_samples))
-
-        # Visulize filtered distribution
-        visualization.show_generated_grasp_distribution(obj_pcd_path, filtered_grasps_1)
-
-        ############## Stage 3 ################
-        # Reject grasps with low probability
-        filtered_grasps_2 = ffhgan.filter_grasps(obj_bps, grasps, thresh=0.90)
-        n_grasps_filt_2 = filtered_grasps_2['rot_matrix'].shape[0]
+        # Filter
+        filtered_grasps_2 , n_grasps_filt_2 = filter(
+                                                ffhgan, 
+                                                obj_pcd_path, 
+                                                obj_bps, grasps, 
+                                                n_samples, 
+                                                is_discriminator = is_discriminator, 
+                                                thresh_succ_list = thresh_succ_list
+                                                )
 
         print("n_grasps after filtering: %d" % n_grasps_filt_2)
         print("This means %.2f of grasps pass the filtering" % (n_grasps_filt_2 / n_samples))
@@ -190,8 +213,17 @@ if __name__ == '__main__':
         # best_epoch = 24
 
         # Best GAN so far:
-        gen_path = "checkpoints/ffhgan/2024-07-04T14_47_06_ffhgan_lr_0.0001_bs_64"
+        gen_path = "checkpoints/ffhgan/2024-03-15T15_20_19_ffhgan_lr_0.0001_bs_1000"
         best_epoch = 63
+        # gen_path = "checkpoints/ffhgan/2024-03-10T17_31_55_ffhgan_lr_0.0001_bs_1000"
+        # best_epoch = 32
+
+        # is_discriminator = True
+        # thresh_succ_list = [0.15, 0.20, 0.25]
+
+        is_discriminator = False
+        thresh_succ_list = [0.5, 0.75, 0.90]
+
         parser.add_argument('--gen_path', default=gen_path, help='path to FFHGenerator model')
         parser.add_argument('--load_gen_epoch', type=int, default=best_epoch, help='epoch of FFHGenerator model')
         # New evaluator:checkpoints/ffhevaluator/2024-06-23_ffhevaluator
@@ -207,6 +239,13 @@ if __name__ == '__main__':
         load_epoch_eva = args.load_eva_epoch
         config_path = args.config
 
-        eval_ffhnet_sampling_and_filtering_real(config_path, load_epoch_eva, load_epoch_gen, load_path_eva,
-                                                load_path_gen, show_individual_grasps=True)
+        eval_ffhnet_sampling_and_filtering_real(config_path, 
+                                                load_epoch_eva, 
+                                                load_epoch_gen, 
+                                                load_path_eva,
+                                                load_path_gen, 
+                                                show_individual_grasps= True, 
+                                                thresh_succ_list = thresh_succ_list, 
+                                                is_discriminator = is_discriminator
+                                                )
     # train()
