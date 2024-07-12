@@ -145,6 +145,49 @@ def maad_for_grasp_distribution(grasp1, grasp2):
 
     return np.sum(transl_loss), np.sum(rot_loss), np.sum(joint_loss), coverage
 
+def filter(ffhgan, obj_pcd_path, obj_bps, grasps, n_samples, is_discriminator = False, thresh_succ_list = [0.5, 0.75, 0.90], visualize = False):
+    if visualize:
+        visualization.show_generated_grasp_distribution(obj_pcd_path, grasps)
+
+    if is_discriminator:
+        filter_func = ffhgan.filter_grasps_discriminator
+    else:
+        filter_func = ffhgan.filter_grasps
+
+    ############### Stage 1 ################
+    # Reject grasps with low probability
+    filtered_grasps = filter_func(obj_bps, grasps, thresh=thresh_succ_list[0])
+    n_grasps_filt = filtered_grasps['rot_matrix'].shape[0]
+
+    print("n_grasps after filtering: %d" % n_grasps_filt)
+    print("This means %.2f of grasps pass the filtering" % (n_grasps_filt / n_samples))
+
+    # Visulize filtered distribution
+    if visualize:
+        visualization.show_generated_grasp_distribution(obj_pcd_path, filtered_grasps)
+
+    ############### Stage 2 ################
+    # Reject grasps with low probability
+    filtered_grasps_1 = filter_func(obj_bps, grasps, thresh=thresh_succ_list[1])
+    n_grasps_filt_1 = filtered_grasps_1['rot_matrix'].shape[0]
+
+    print("n_grasps after filtering: %d" % n_grasps_filt_1)
+    print("This means %.2f of grasps pass the filtering" % (n_grasps_filt_1 / n_samples))
+
+    # Visulize filtered distribution
+    if visualize:
+        visualization.show_generated_grasp_distribution(obj_pcd_path, filtered_grasps_1)
+
+    ############## Stage 3 ################
+    # Reject grasps with low probability
+    filtered_grasps_2 = filter_func(obj_bps, grasps, thresh=thresh_succ_list[2])
+    n_grasps_filt_2 = filtered_grasps_2['rot_matrix'].shape[0]
+
+    print("n_grasps after filtering: %d" % n_grasps_filt_2)
+    print("This means %.2f of grasps pass the filtering" % (n_grasps_filt_2 / n_samples))
+
+    return filtered_grasps_2 , n_grasps_filt_2
+
 def poses_to_transforms(pose_vectors):
     """
     Convert multiple 7D pose vectors into rotation matrices and translation vectors.
@@ -175,11 +218,17 @@ def poses_to_transforms(pose_vectors):
 
     return rotation_matrices, translation_vectors
 
-def main(config_path,
+def main(
+    config_path,
+    load_epoch_eva,
     load_epoch_gen,
+    load_path_eva,
     load_path_gen,
     is_gan = True,
-    show_individual_grasps=False):
+    show_individual_grasps=False,
+    is_discriminator = False,
+    is_filter = True
+    ):
 
     config = Config(config_path)
     cfg = config.parse()
@@ -188,11 +237,19 @@ def main(config_path,
         model = FFHGANet(cfg)
     else:
         model = FFHNet(cfg)
+
+    if is_discriminator and is_gan:
+
+        thresh_succ_list=[0.15, 0.175, 0.20]
+    else:
+        thresh_succ_list=[0.5, 0.75, 0.90]
+
     print(model)
     
     base_data_bath = os.path.join(ROOT_PATH,'data','real_objects')
     model.load_ffhgenerator(epoch=load_epoch_gen, load_path=load_path_gen)
-
+    
+    model.load_ffhevaluator(epoch=load_epoch_eva, load_path=load_path_eva)
     dset_gen = FFHGeneratorDataSet(cfg, eval=True)
     train_loader_gen = DataLoader(dset_gen,
                                     batch_size=64,
@@ -224,16 +281,30 @@ def main(config_path,
         grasps_gt = dset_gen.get_grasps_from_pcd_path(pcd_path)
         grasps_gt['joint_conf'] = np.array(grasps_gt['joint_conf'])
 
-        out = model.generate_grasps(
-            batch['bps_object'][idx].cpu().data.numpy(), 
-            n_samples=grasps_gt['joint_conf'].shape[0], 
-            return_arr=True
-            )
-        
         if show_individual_grasps:
-            # Needs gazebo objects path
-            # visualization.show_ground_truth_grasp_distribution(batch['obj_name'][idx], dset_gen.grasp_data_path, dset_gen.gazebo_obj_path)
             visualization.show_generated_grasp_distribution(pcd_path, grasps_gt)
+        if is_filter:
+            out = model.generate_grasps(
+                batch['bps_object'][idx].cpu().data.numpy(), 
+                n_samples=grasps_gt['joint_conf'].shape[0]*10, 
+                return_arr=True
+                )
+            out , n_grasps_filt_2 = filter(
+                                        model, 
+                                        pcd_path, 
+                                        batch['bps_object'][idx].cpu().data.numpy(), out, 
+                                        grasps_gt['joint_conf'].shape[0], 
+                                        is_discriminator = is_discriminator, 
+                                        thresh_succ_list = thresh_succ_list,
+                                        visualize = show_individual_grasps
+                                        )
+        else:
+            out = model.generate_grasps(
+                batch['bps_object'][idx].cpu().data.numpy(), 
+                n_samples=grasps_gt['joint_conf'].shape[0], 
+                return_arr=True
+                )
+        if show_individual_grasps:
             visualization.show_generated_grasp_distribution(pcd_path, out)
             
         transl_loss, rot_loss, joint_loss, coverage = maad_for_grasp_distribution(out, grasps_gt)
@@ -271,22 +342,28 @@ if __name__ == '__main__':
         # # Best VAE so far:
         # gen_path = "checkpoints/ffhnet/ffhgenerator_bs5012"
         # best_epoch = 30
+        # gen_path = "checkpoints/ffhnet/2024-06-07T14_35_31_ffhnet_lr_0.0001_bs_1000"
+        # best_epoch = 19
 
         # # Best GAN so far:
         # gen_path = "checkpoints/ffhgan/2024-03-10T17_31_55_ffhgan_lr_0.0001_bs_1000"
-        # best_epoch = 32
+        # best_epoch = 45
 
         # Experiment checkpoint:
-        
+
         # gen_path = "checkpoints/ffhgan/2024-03-10T17_31_55_ffhgan_lr_0.0001_bs_1000"
         # best_epoch = 32
         gen_path = "checkpoints/ffhgan/2024-03-15T15_20_19_ffhgan_lr_0.0001_bs_1000"
         best_epoch = 63
         
+        is_discriminator = False
+        is_filter = False
+
         parser.add_argument('--gen_path', default=gen_path, help='path to FFHGenerator model')
         parser.add_argument('--load_gen_epoch', type=int, default=best_epoch, help='epoch of FFHGenerator model')
 
-        parser.add_argument('--eva_path', default='models/ffhevaluator', help='path to FFHEvaluator model')
+        # parser.add_argument('--eva_path', default='models/ffhevaluator', help='path to FFHEvaluator model')
+        parser.add_argument('--eva_path', default='checkpoints/ffhevaluator/2024-06-23_ffhevaluator', help='path to FFHEvaluator model')
         parser.add_argument('--load_eva_epoch', type=int, default=30, help='epoch of FFHEvaluator model')
         parser.add_argument('--config', type=str, default='FFHNet/config/config_ffhgan.yaml')
 
@@ -303,7 +380,16 @@ if __name__ == '__main__':
         else:
             is_gan = False
 
-        main(config_path, load_epoch_gen, load_path_gen, is_gan = is_gan, show_individual_grasps = True)
+        main(
+        config_path,    
+        load_epoch_eva,
+        load_epoch_gen,
+        load_path_eva,
+        load_path_gen,
+        is_gan = is_gan, 
+        show_individual_grasps = True, 
+        is_discriminator=is_discriminator,
+        is_filter=is_filter)
         
         # with open(load_path_gen + '_metrics.csv', 'w') as file:
         #     writer = csv.writer(file)
