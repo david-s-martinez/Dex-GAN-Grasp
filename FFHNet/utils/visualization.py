@@ -354,7 +354,7 @@ def show_generated_grasp_distribution(pcd_path,
             frame = o3d.geometry.TriangleMesh.create_coordinate_frame(0.065).transform(
                 palm_pose_centr)
         else:
-            frame = o3d.geometry.TriangleMesh.create_coordinate_frame(0.0075).transform(
+            frame = o3d.geometry.TriangleMesh.create_coordinate_frame(0.01).transform(
                 palm_pose_centr)
         frames.append(frame)
 
@@ -372,7 +372,7 @@ def show_generated_grasp_distribution(pcd_path,
     frames.append(obj)
     if custom_vis:
         origin = o3d.geometry.TriangleMesh.create_coordinate_frame(
-                size=0.1)
+                size=0.07)
         frames.append(origin)
         vis = o3d.visualization.Visualizer()
         vis.create_window()

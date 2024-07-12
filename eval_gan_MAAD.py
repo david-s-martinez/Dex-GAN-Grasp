@@ -286,7 +286,7 @@ def main(
         if is_filter:
             out = model.generate_grasps(
                 batch['bps_object'][idx].cpu().data.numpy(), 
-                n_samples=grasps_gt['joint_conf'].shape[0]*10, 
+                n_samples=grasps_gt['joint_conf'].shape[0]*5, 
                 return_arr=True
                 )
             out , n_grasps_filt_2 = filter(
@@ -294,7 +294,7 @@ def main(
                                         pcd_path, 
                                         batch['bps_object'][idx].cpu().data.numpy(), out, 
                                         grasps_gt['joint_conf'].shape[0], 
-                                        is_discriminator = is_discriminator, 
+                                        is_discriminator = is_discriminator and is_gan, 
                                         thresh_succ_list = thresh_succ_list,
                                         visualize = show_individual_grasps
                                         )

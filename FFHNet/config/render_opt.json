@@ -77,7 +77,7 @@
 	"mesh_show_back_face": false,
 	"mesh_show_wireframe": false,
 	"point_color_option": 0,
-	"point_show_normal": false,
+	"point_show_normal": true,
 	"point_size": 0.8,
 	"show_coordinate_frame": false,
 	"version_major": 1,
