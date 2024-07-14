@@ -218,6 +218,37 @@ def poses_to_transforms(pose_vectors):
 
     return rotation_matrices, translation_vectors
 
+def translate_along_axis(out, axis, translation):
+    """
+    Translates the poses along the rotated z-axis as defined by the rotation matrix.
+    
+    Parameters:
+        out (dict): Dictionary containing 'transl' and 'rot_matrix' keys.
+                    'transl' is a numpy array of shape (n, 3).
+                    'rot_matrix' is a numpy array of shape (n, 3, 3).
+        z_translation (float): The value by which to translate along the rotated z-axis.
+    """
+    # Number of poses
+    n = out['transl'].shape[0]
+    z_translation = np.array([0., 0., 0.])
+    z_translation[axis] = translation
+
+    for i in range(n):
+        # Extract the translation and rotation matrix for the i-th pose
+        transl = out['transl'][i]
+        rot_matrix = out['rot_matrix'][i]
+
+        # Construct the homogeneous transformation matrix for the current pose
+        transform_matrix = np.eye(4)
+        transform_matrix[:3, :3] = rot_matrix
+        transform_matrix[:3, 3] = transl
+        new_transform_matrix = np.eye(4)
+        new_transform_matrix[:3,-1] = transform_matrix[:3,-1] - transform_matrix[:3,:3] @ z_translation
+
+        # Update the original dictionary with the new translated values
+        out['transl'][i] = new_transform_matrix[:3, 3]
+    return out
+
 def main(
     config_path,
     load_epoch_eva,
@@ -227,7 +258,8 @@ def main(
     is_gan = True,
     show_individual_grasps=False,
     is_discriminator = False,
-    is_filter = True
+    is_filter = True,
+    z_offset = 0.0
     ):
 
     config = Config(config_path)
@@ -289,6 +321,8 @@ def main(
                 n_samples=grasps_gt['joint_conf'].shape[0]*5, 
                 return_arr=True
                 )
+            if is_gan:
+                out = translate_along_axis(out, 0, z_offset)
             out , n_grasps_filt_2 = filter(
                                         model, 
                                         pcd_path, 
@@ -304,6 +338,9 @@ def main(
                 n_samples=grasps_gt['joint_conf'].shape[0], 
                 return_arr=True
                 )
+        if is_gan:
+            out = translate_along_axis(out, 0, z_offset)
+
         if show_individual_grasps:
             visualization.show_generated_grasp_distribution(pcd_path, out)
             
@@ -348,16 +385,24 @@ if __name__ == '__main__':
         # # Best GAN so far:
         # gen_path = "checkpoints/ffhgan/2024-03-10T17_31_55_ffhgan_lr_0.0001_bs_1000"
         # best_epoch = 45
+        # z_offset = 0.025
 
         # Experiment checkpoint:
 
+        gen_path = "checkpoints/ffhgan/2024-03-10T17_31_55_ffhgan_lr_0.0001_bs_1000"
+        best_epoch = 32
+        z_offset = 0.025
+
         # gen_path = "checkpoints/ffhgan/2024-03-10T17_31_55_ffhgan_lr_0.0001_bs_1000"
-        # best_epoch = 32
-        gen_path = "checkpoints/ffhgan/2024-03-15T15_20_19_ffhgan_lr_0.0001_bs_1000"
-        best_epoch = 63
+        # best_epoch = 37 #higher coverage
+        # z_offset = 0.0286
+
+        # gen_path = "checkpoints/ffhgan/2024-03-15T15_20_19_ffhgan_lr_0.0001_bs_1000"
+        # best_epoch = 63
+        # z_offset = 0.025
         
-        is_discriminator = False
-        is_filter = False
+        is_discriminator = True
+        is_filter = True
 
         parser.add_argument('--gen_path', default=gen_path, help='path to FFHGenerator model')
         parser.add_argument('--load_gen_epoch', type=int, default=best_epoch, help='epoch of FFHGenerator model')
@@ -389,7 +434,9 @@ if __name__ == '__main__':
         is_gan = is_gan, 
         show_individual_grasps = True, 
         is_discriminator=is_discriminator,
-        is_filter=is_filter)
+        is_filter=is_filter,
+        z_offset = z_offset
+        )
         
         # with open(load_path_gen + '_metrics.csv', 'w') as file:
         #     writer = csv.writer(file)

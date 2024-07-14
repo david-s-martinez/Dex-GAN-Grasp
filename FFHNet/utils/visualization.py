@@ -594,7 +594,7 @@ def show_grasp_and_object(path, palm_T_centr, joint_conf, urdf_path = 'meshes/hi
                                                       baseColorFactor=[255, 0, 0, 1]))
 
     # Construct a scene
-    scene = pyrender.Scene(bg_color=(0,0,0))
+    scene = pyrender.Scene(bg_color=(255,255,255))
 
     base_T_centr = np.linalg.inv(centr_T_base)
     # Add the robot to the scene

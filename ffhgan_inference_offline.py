@@ -162,10 +162,10 @@ bps = b_torch.bps_torch(custom_basis=bps_np)
 # grasp_pub = rospy.Publisher('goal_pick_pose', String, queue_size=10)
 # rospy.init_node('pose_pub')
 # rate = rospy.Rate(10) # 10hz
-# i = int(input('i=?'))
+start = int(input('i=?'))
 # i = 0
 try:
-    for i in range(115):
+    for i in range(start, 115, 1):
         # while loop to try LLM VLM 
         # while True:
         #     try:
@@ -268,7 +268,7 @@ try:
         crop_pcd_np = crop_pcd_np[crop_pcd_np[:,2] >0]
         crop_pcd = o3d.geometry.PointCloud()
         crop_pcd.points = o3d.utility.Vector3dVector(crop_pcd_np)
-        # o3d.visualization.draw_geometries([crop_pcd])
+        o3d.visualization.draw_geometries([crop_pcd])
         obj_pcd = copy.deepcopy(crop_pcd).transform(np.linalg.inv(base_T_cam))
 
         obj_pcd_cam = deepcopy(obj_pcd)
@@ -305,7 +305,7 @@ try:
         grasps = sort_grasps(grasps, sorted_grasp_indices, sort_num=30)
 
         visualization.show_generated_grasp_distribution(obj_pcd_path, vis_grasps, mean_coord=part_mean)
-        visualization.show_generated_grasp_distribution(obj_pcd_path, grasps,mean_coord=part_mean)
+        visualization.show_generated_grasp_distribution(obj_pcd_path, grasps)
 
         # # # Visualize sampled distribution
         # visualization.show_generated_grasp_distribution(obj_pcd_path, grasps)
@@ -365,14 +365,15 @@ try:
                 }
             }
             grasps[str(j)] = pick_goals_dict
+            palm_pose_centr = utils.hom_matrix_from_transl_rot_matrix(transl[j], rot_matrix[j])
+            visualization.show_grasp_and_object(obj_pcd_path, palm_pose_centr, joint_conf[j],
+                                                'meshes/robotiq_palm/robotiq-3f-gripper_articulated.urdf')
         
         # grasp_pub.publish(str(grasps))
         # rate.sleep()
 
         np.save("./base2flange_inferred.npy",base_T_flange)
 
-        # visualization.show_grasp_and_object(obj_pcd_path, palm_pose_centr, joint_conf,
-        #                                     'meshes/robotiq_palm/robotiq-3f-gripper_articulated.urdf')
         #### send grasp to local pc
         a = input('Break loop? (y/n): ')
         if a == 'y':
