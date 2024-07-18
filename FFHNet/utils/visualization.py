@@ -344,30 +344,31 @@ def show_generated_grasp_distribution(pcd_path,
         path (str): Path to the object pcd
         grasps (dict): contains arrays rot_matrix [n*3*3], palm transl [n*3], joint_conf [n*15]
     """
-    n_samples = grasps['rot_matrix'].shape[0]
     frames = []
-    for i in range(n_samples):
-        rot_matrix = grasps['rot_matrix'][i, :, :]
-        transl = grasps['transl'][i, :]
-        palm_pose_centr = utils.hom_matrix_from_transl_rot_matrix(
-            transl, rot_matrix)
-        if i == highlight_idx:
-            frame = o3d.geometry.TriangleMesh.create_coordinate_frame(0.065).transform(
-                palm_pose_centr)
-        else:
-            frame = o3d.geometry.TriangleMesh.create_coordinate_frame(0.01).transform(
-                palm_pose_centr)
-        frames.append(frame)
+    if grasps:
+        n_samples = grasps['rot_matrix'].shape[0]
+        for i in range(n_samples):
+            rot_matrix = grasps['rot_matrix'][i, :, :]
+            transl = grasps['transl'][i, :]
+            palm_pose_centr = utils.hom_matrix_from_transl_rot_matrix(
+                transl, rot_matrix)
+            if i == highlight_idx:
+                frame = o3d.geometry.TriangleMesh.create_coordinate_frame(0.065).transform(
+                    palm_pose_centr)
+            else:
+                frame = o3d.geometry.TriangleMesh.create_coordinate_frame(0.01).transform(
+                    palm_pose_centr)
+            frames.append(frame)
 
-    if mean_coord is not False:
-        origin_mean = o3d.geometry.TriangleMesh.create_coordinate_frame(0.2).translate(
-                mean_coord.reshape(3,))
-        frames.append(origin_mean)
-    # visualize
-    ## If you want to add origin, this
-    # orig = o3d.geometry.TriangleMesh.create_coordinate_frame(0.001)
-    # orig = orig.scale(5, center=orig.get_center())
-    # frames.append(orig)
+        if mean_coord is not False:
+            origin_mean = o3d.geometry.TriangleMesh.create_coordinate_frame(0.2).translate(
+                    mean_coord.reshape(3,))
+            frames.append(origin_mean)
+        # visualize
+        ## If you want to add origin, this
+        # orig = o3d.geometry.TriangleMesh.create_coordinate_frame(0.001)
+        # orig = orig.scale(5, center=orig.get_center())
+        # frames.append(orig)
 
     obj = o3d.io.read_point_cloud(pcd_path)
     #obj = obj.voxel_down_sample(0.002)
@@ -375,6 +376,7 @@ def show_generated_grasp_distribution(pcd_path,
     obj.estimate_normals(
         search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.02, max_nn=100))
     frames.append(obj)
+    
     if custom_vis:
         origin = o3d.geometry.TriangleMesh.create_coordinate_frame(
                 size=0.07)

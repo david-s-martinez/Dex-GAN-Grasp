@@ -532,7 +532,7 @@ class FFHGANet(object):
 
         return filt_grasps
 
-    def generate_grasps(self, bps, n_samples, return_arr=True):
+    def generate_grasps(self, bps, n_samples, return_arr=True, z_offset=0.025):
         """Samples n grasps either from combining given bps encoding with z or sampling from random normal distribution.
 
         Args:
@@ -551,7 +551,7 @@ class FFHGANet(object):
         bps = np.tile(bps, (n_samples, 1))
         bps_tensor = torch.tensor(bps, dtype=self.dtype, device=self.device)
 
-        return self.FFHGAN.generate_poses(bps_tensor, return_arr=return_arr)
+        return self.FFHGAN.generate_poses(bps_tensor, return_arr=return_arr, z_offset=z_offset)
 
     def improve_grasps_gradient_based(self, data, last_success):
         """Apply small gradient steps to improve an initial grasp.

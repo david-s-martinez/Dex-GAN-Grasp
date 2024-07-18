@@ -16,6 +16,36 @@ except:
 
 from FFHNet.utils.definitions import HAND_CFG, ROBOTIQ_CFG
 
+def translate_along_axis(out, axis, translation):
+    """
+    Translates the poses along the rotated z-axis as defined by the rotation matrix.
+    
+    Parameters:
+        out (dict): Dictionary containing 'transl' and 'rot_matrix' keys.
+                    'transl' is a numpy array of shape (n, 3).
+                    'rot_matrix' is a numpy array of shape (n, 3, 3).
+        z_translation (float): The value by which to translate along the rotated z-axis.
+    """
+    # Number of poses
+    n = out['transl'].shape[0]
+    z_translation = np.array([0., 0., 0.])
+    z_translation[axis] = translation
+
+    for i in range(n):
+        # Extract the translation and rotation matrix for the i-th pose
+        transl = out['transl'][i]
+        rot_matrix = out['rot_matrix'][i]
+
+        # Construct the homogeneous transformation matrix for the current pose
+        transform_matrix = np.eye(4)
+        transform_matrix[:3, :3] = rot_matrix
+        transform_matrix[:3, 3] = transl
+        new_transform_matrix = np.eye(4)
+        new_transform_matrix[:3,-1] = transform_matrix[:3,-1] - transform_matrix[:3,:3] @ z_translation
+
+        # Update the original dictionary with the new translated values
+        out['transl'][i] = new_transform_matrix[:3, 3]
+    return out
 
 def quat_xyzw2wxyz(quat):
     """   tf transform defines quaternion as xyzw

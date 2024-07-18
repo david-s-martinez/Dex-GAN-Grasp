@@ -93,6 +93,7 @@ def eval_ffhnet_sampling_and_filtering_real(config_path,
         grasps = ffhgan.generate_grasps(obj_bps, n_samples=n_samples, return_arr=True)
 
         # Visualize sampled distribution
+        visualization.show_generated_grasp_distribution(obj_pcd_path, [])
         visualization.show_generated_grasp_distribution(obj_pcd_path, grasps)
 
         # Filter

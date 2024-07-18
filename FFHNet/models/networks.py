@@ -220,7 +220,7 @@ class FFHGAN(nn.Module):
         # return fake_results, real_p_success, fake_p_success
         return fake_results
 
-    def generate_poses(self, bps_object, return_arr=False, seed=None, sample_uniform=False):
+    def generate_poses(self, bps_object, return_arr=False, seed=None, sample_uniform=False, z_offset=0.0):
         """[summary]
 
         Args:
@@ -251,9 +251,10 @@ class FFHGAN(nn.Module):
             for k, v in results.items():
                 results[k] = v.cpu().detach().numpy()
         print("Sampling took: %.3f" % (time.time() - start))
+        results = utils.translate_along_axis(results, 0, z_offset)
         return results
     
-    def generate_grasps(self, bps, n_samples, return_arr=True):
+    def generate_grasps(self, bps, n_samples, return_arr=True, z_offset=0.025):
         """Samples n grasps either from combining given bps encoding with z or sampling from random normal distribution.
 
         Args:
@@ -272,7 +273,7 @@ class FFHGAN(nn.Module):
         bps = np.tile(bps, (n_samples, 1))
         bps_tensor = torch.tensor(bps, dtype=self.dtype, device=self.device)
 
-        return self.generate_poses(bps_tensor, return_arr=return_arr)
+        return self.generate_poses(bps_tensor, return_arr=return_arr,z_offset=z_offset)
 
 class FFHGenerator(nn.Module):
     def __init__(self,
@@ -358,7 +359,7 @@ class FFHGenerator(nn.Module):
 
         return results
 
-    def generate_poses(self, bps_object, return_arr=False, seed=None, sample_uniform=False):
+    def generate_poses(self, bps_object, return_arr=False, seed=None, sample_uniform=False, z_offset=0.0):
         """[summary]
 
         Args:
@@ -388,6 +389,7 @@ class FFHGenerator(nn.Module):
             for k, v in results.items():
                 results[k] = v.cpu().detach().numpy()
         print("Sampling took: %.3f" % (time.time() - start))
+        results = utils.translate_along_axis(results, 0, z_offset)
         return results
 
     def set_input(self, data):
