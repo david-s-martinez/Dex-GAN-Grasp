@@ -8,7 +8,7 @@ import pyrealsense2 as rs
 
 repo_root = os.path.dirname(__file__) + '/../'
 sys.path.insert(0, os.path.join(repo_root, 'src'))
-from realsense import RealSense
+from inference.realsense import RealSense
 
 def signal_handler(self, signal, frame):
     print("====================================")

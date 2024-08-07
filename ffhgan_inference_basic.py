@@ -31,11 +31,11 @@ import tf.transformations
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..','src'))
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 
-from segmentation import PlaneSegmentation
-from realsense import RealSense
+from inference.segmentation import PlaneSegmentation
+from inference.realsense import RealSense
 
 # Data collection
-# from ffhflow_grasp_viewer import show_grasp_and_object_given_pcd
+# from inference.ffhflow_grasp_viewer import show_grasp_and_object_given_pcd
 
 import zmq
 import numpy as np
@@ -128,7 +128,7 @@ ffhgan.load_ffhgenerator(epoch=load_epoch_gen, load_path=load_path_gen)
 ffhgan.load_ffhevaluator(epoch=load_epoch_eva, load_path=load_path_eva)
 path_real_objs_bps = os.path.join(base_data_bath, 'bps')
 
-bps_path = './basis_point_set.npy'
+bps_path = 'models/basis_point_set.npy'
 bps_np = np.load(bps_path)
 bps = b_torch.bps_torch(custom_basis=bps_np)
 

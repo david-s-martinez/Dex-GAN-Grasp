@@ -23,7 +23,7 @@ import csv
 ROOT_PATH = os.path.dirname(os.path.abspath(__file__))
 
 def save_batch_to_file(batch):
-    torch.save(batch, "eval_batch.pth")
+    torch.save(batch, "data/eval_batch.pth")
 
 def load_batch(path):
     return torch.load(path, map_location="cuda:0")
@@ -259,7 +259,7 @@ def main(
                                     num_workers=cfg["num_threads"])
     grasp_data = dset_gen.grasp_data_handler
 
-    if not os.path.isfile('eval_batch.pth'):
+    if not os.path.isfile('data/eval_batch.pth'):
         for i, batch in enumerate(train_loader_gen):
             if i == 0:
                 save_batch_to_file(batch)
@@ -273,7 +273,7 @@ def main(
     num_nan_transl = 0
     num_nan_rot = 0
     num_nan_joint = 0
-    batch = load_batch('eval_batch.pth')
+    batch = load_batch('data/eval_batch.pth')
     print(batch.keys())
 
     for idx in range(len(batch['obj_name'])):
@@ -405,7 +405,7 @@ if __name__ == '__main__':
         load_path_eva,
         load_path_gen,
         is_gan = is_gan, 
-        show_individual_grasps = False, 
+        show_individual_grasps = True, 
         is_discriminator=is_discriminator,
         is_filter=is_filter,
         z_offset = z_offset
