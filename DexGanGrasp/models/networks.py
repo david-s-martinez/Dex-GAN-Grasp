@@ -1,12 +1,12 @@
 import time
 import numpy as np
 import torch
-from FFHNet.utils import utils
+from DexGanGrasp.utils import utils
 from torch import nn
 from torch.optim import lr_scheduler
 
-from FFHNet.utils import utils
-from FFHNet.models import losses
+from DexGanGrasp.utils import utils
+from DexGanGrasp.models import losses
 
 
 def get_scheduler(optimizer, cfg):

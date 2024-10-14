@@ -3,13 +3,12 @@ import numpy as np
 import os
 import time
 import torch
-from FFHNet.utils.train_tools import EarlyStopping
-from FFHNet.utils import utils
+from DexGanGrasp.utils.train_tools import EarlyStopping
+from DexGanGrasp.utils import utils
 
-import FFHNet.models.losses as losses
-import FFHNet.models.networks as networks
-from FFHNet.models.pointnet import PointNetEvaluator, PointNetGenerator
-from FFHNet.models.networks import FFHGenerator,FFHEvaluator
+import DexGanGrasp.models.losses as losses
+import DexGanGrasp.models.networks as networks
+from DexGanGrasp.models.networks import FFHGenerator,FFHEvaluator, FFHGAN
 
 def define_losses(loss_type_recon):
     """ This will return the loss functions. The KL divergence is fixed, but for the reconstruction loss
@@ -27,20 +26,8 @@ def define_losses(loss_type_recon):
 
 
 def build_ffhnet(cfg, device, is_train):
-    gen = FFHGenerator(cfg)
+    gen = FFHGAN(cfg)
     eva = FFHEvaluator(cfg)
-
-    if torch.cuda.is_available:
-        gen.to(device)
-        eva.to(device)
-    if is_train:
-        init_net(gen)
-        init_net(eva)
-    return gen, eva
-
-def build_pointnet(cfg,device,is_train):
-    gen = PointNetGenerator(cfg)
-    eva = PointNetEvaluator(cfg)
     if torch.cuda.is_available:
         gen.to(device)
         eva.to(device)
@@ -75,7 +62,7 @@ def init_net(net):
     net.apply(init_func)
 
 # TODO: refactor. This class is used in train.py. eval.py and visualization.py
-class FFHNet(object):
+class FFHGANet(object):
     """ Wrapper which houses the network blocks, the losses and training logic.
     """
 
@@ -84,7 +71,7 @@ class FFHNet(object):
         torch.set_default_dtype(self.dtype)
         self.cfg = cfg
         self.is_train = cfg["is_train"]
-
+        self.is_wgan = cfg["is_wgan"]
         if torch.cuda.is_available:
             self.device = torch.device('cuda:{}'.format(cfg["gpu_ids"][0]))
             torch.cuda.empty_cache()
@@ -93,9 +80,9 @@ class FFHNet(object):
 
         # model, optimizer, scheduler_ffhgenerator, losses
         if cfg["model"] == "ffhnet":
-            self.FFHGenerator, self.FFHEvaluator = build_ffhnet(cfg, self.device, is_train=self.is_train)
-        elif cfg["model"] == "pointnet":
-            self.FFHGenerator, self.FFHEvaluator = build_pointnet(cfg, self.device, is_train=self.is_train)
+            self.FFHGAN, self.FFHEvaluator = build_ffhnet(cfg, self.device, is_train=self.is_train)
+        elif cfg["model"] == "ffhgan":
+            self.FFHGAN, self.FFHEvaluator = build_ffhnet(cfg, self.device, is_train=self.is_train)
         else:
             raise ValueError('Wrong configure model name of', cfg["model"])
 
@@ -107,16 +94,25 @@ class FFHNet(object):
             self.conf_coef = 10.
             self.train_ffhgenerator = cfg["train_ffhgenerator"]
             self.train_ffhevaluator = cfg["train_ffhevaluator"]
-            self.optim_ffhgenerator = torch.optim.Adam(self.FFHGenerator.parameters(),
+            self.optim_ffhgenerator = torch.optim.Adam(self.FFHGAN.parameters(),
                                                        lr=cfg["lr"],
+                                                       betas=(cfg["beta1"], 0.999),
+                                                       weight_decay=cfg["weight_decay"])
+            self.optim_ffhgan_generator = torch.optim.Adam(self.FFHGAN.generator.parameters(),
+                                                       lr=cfg["lr_gen"],
+                                                       betas=(cfg["beta1"], 0.999),
+                                                       weight_decay=cfg["weight_decay"])
+            self.optim_ffhgan_discriminator = torch.optim.Adam(self.FFHGAN.discriminator.parameters(),
+                                                       lr=cfg["lr_dis"],
                                                        betas=(cfg["beta1"], 0.999),
                                                        weight_decay=cfg["weight_decay"])
             self.optim_ffhevaluator = torch.optim.Adam(self.FFHEvaluator.parameters(),
                                                        lr=cfg["lr"],
                                                        betas=(cfg["beta1"], 0.999),
                                                        weight_decay=cfg["weight_decay"])
-
             self.scheduler_ffhgenerator = networks.get_scheduler(self.optim_ffhgenerator, cfg)
+            self.scheduler_ffhgan_generator = networks.get_scheduler(self.optim_ffhgan_generator, cfg)
+            self.scheduler_ffhgan_discriminator = networks.get_scheduler(self.optim_ffhgan_discriminator, cfg)
             self.scheduler_ffhevaluator = networks.get_scheduler(self.optim_ffhevaluator, cfg)
             self.estop_ffhgenerator = EarlyStopping()
             self.estop_ffhevaluator = EarlyStopping()
@@ -129,11 +125,11 @@ class FFHNet(object):
 
         # Wrap models if we use multi-gpu
         if len(cfg["gpu_ids"]) > 1:
-            self.FFHGenerator = torch.nn.DataParallel(self.FFHGenerator, device_ids=cfg["gpu_ids"])
+            self.FFHGAN = torch.nn.DataParallel(self.FFHGAN, device_ids=cfg["gpu_ids"])
             self.FFHEvaluator = torch.nn.DataParallel(self.FFHEvaluator, device_ids=cfg["gpu_ids"])
 
         # count params
-        ffhgenerator_vars = [var[1] for var in self.FFHGenerator.named_parameters()]
+        ffhgenerator_vars = [var[1] for var in self.FFHGAN.named_parameters()]
         ffhgenerator_n_params = sum(p.numel() for p in ffhgenerator_vars if p.requires_grad)
         print("The ffhgenerator has {:2.2f} parms".format(ffhgenerator_n_params))
         ffhevaluator_vars = [var[1] for var in self.FFHEvaluator.named_parameters()]
@@ -158,14 +154,14 @@ class FFHNet(object):
 
         # Pose loss, translation rotation
         gt_transl_rot_matrix = {
-            'transl': self.FFHGenerator.transl,
-            'rot_matrix': self.FFHGenerator.rot_matrix
+            'transl': self.FFHGAN.transl,
+            'rot_matrix': self.FFHGAN.rot_matrix
         }
         transl_loss_val, rot_loss_val = self.rec_pose_loss(data_rec, gt_transl_rot_matrix,
                                                            self.L2_loss, self.device)
 
         # Loss on joint angles
-        conf_loss_val = self.L2_loss(data_rec['joint_conf'], self.FFHGenerator.joint_conf)
+        conf_loss_val = self.L2_loss(data_rec['joint_conf'], self.FFHGAN.joint_conf)
 
         # Put all losses in one dict and weigh them individually
         loss_dict = {
@@ -178,6 +174,166 @@ class FFHNet(object):
             self.rot_coef * rot_loss_val + self.conf_coef * conf_loss_val
         loss_dict["total_loss_gen"] = total_loss
 
+        return total_loss, loss_dict
+    
+    def calculate_interp(self, real_data, fake_data):
+        # Random weight term for interpolation between real and fake data
+        if len(real_data.shape)==3:
+            alpha = torch.randn((real_data.size(0), 1, 1), device=self.FFHGAN.device)
+        else:
+            alpha = torch.randn((real_data.size(0), 1), device=self.FFHGAN.device)
+        # Get random interpolation between real and fake data
+        interpolates = (alpha * real_data + ((1 - alpha) * fake_data)).requires_grad_(True)
+        return interpolates
+    
+    def calculate_grad_interp(self, interpolates, model_interpolates):
+        grad_outputs = torch.ones(model_interpolates.size(), device=self.FFHGAN.device, requires_grad=False)
+
+        # Get gradient w.r.t. interpolates
+        gradients = torch.autograd.grad(
+            outputs=model_interpolates,
+            inputs=interpolates,
+            grad_outputs=grad_outputs,
+            create_graph=True,
+            retain_graph=True,
+            only_inputs=True,
+        )[0]
+        gradients = gradients.view(gradients.size(0), -1)
+        return gradients
+    
+    def calculate_gradient_penalty(self, real_data, fake_data):
+        """Calculates the gradient penalty loss for WGAN GP"""
+        fake_rot_matrix = fake_data["rot_matrix"]
+        fake_transl = fake_data["transl"]
+        fake_joint_conf = fake_data["joint_conf"]
+
+        real_rot_matrix = real_data["rot_matrix"].to(self.FFHGAN.device)
+        real_transl = real_data["transl"].to(self.FFHGAN.device)
+        real_joint_conf = real_data["joint_conf"].to(self.FFHGAN.device)
+        interp_data = {
+                "bps_object": real_data["bps_object"],
+                "rot_matrix": self.calculate_interp(real_rot_matrix,fake_rot_matrix),
+                "transl": self.calculate_interp(real_transl, fake_transl),
+                "joint_conf": self.calculate_interp(real_joint_conf,fake_joint_conf)
+            }
+
+        interpolate_scores = self.FFHGAN.discriminator(interp_data)
+        gradient_penaties = []
+
+        for out in ["rot_matrix", "transl", "joint_conf"]:
+            gradients = self.calculate_grad_interp(interp_data[out], interpolate_scores)
+            gradient_penalty = torch.mean((gradients.norm(2, dim=1) - 1) ** 2)
+            gradient_penaties.append(gradient_penalty)
+        return torch.mean(torch.stack(gradient_penaties))
+    
+    def compute_loss_ffhgan_discriminator_wass(self, real_score, fake_score, real_data, fake_data, penalty_gain = 10):
+        """Computes the binary cross entropy loss between predicted real score and true real score"""
+        bce_loss_real = torch.mean(real_score)
+        bce_loss_fake = torch.mean(fake_score)
+        gradient_penalty = self.calculate_gradient_penalty(real_data, fake_data)
+        total_loss_disc = -bce_loss_real + bce_loss_fake + (gradient_penalty * penalty_gain)
+        loss_dict = {
+            'total_loss_disc': total_loss_disc, 
+            'bce_loss_real': bce_loss_real, 
+            'bce_loss_fake':bce_loss_fake
+        }
+
+        return total_loss_disc, loss_dict
+    
+    def compute_loss_ffhgan_discriminator(self, real_score, fake_score, real_data = None, fake_data_disc = None):
+        """Computes the binary cross entropy loss between predicted real score and true real score"""
+        bce_loss_real = self.bce_weight * self.BCE_loss(
+                                                real_score, 
+                                                torch.ones_like(real_score)
+                                                )
+        
+        bce_loss_fake = self.bce_weight * self.BCE_loss(
+                                                fake_score, 
+                                                torch.zeros_like(fake_score)
+                                                )
+        
+        total_loss_disc = (bce_loss_real + bce_loss_fake) / 2
+        loss_dict = {
+            'total_loss_disc': total_loss_disc, 
+            'bce_loss_real': bce_loss_real, 
+            'bce_loss_fake':bce_loss_fake
+        }
+
+        return total_loss_disc, loss_dict
+    
+    def compute_loss_ffhgan_generator_wass(self, real_data, fake_data, fake_score):
+        """ The model should output a 6D representation of a rotation, which then gets mapped back to
+        """
+        # Pose loss, translation rotation
+        gt_transl_rot_matrix = {
+            'transl': real_data['transl'].to(self.FFHGAN.device).float(),
+            'rot_matrix': real_data['rot_matrix'].to(self.FFHGAN.device).float()
+        }
+        transl_loss_val, rot_loss_val = self.rec_pose_loss(fake_data, gt_transl_rot_matrix,
+                                                           self.L2_loss, self.device)
+        transl_loss_val, rot_loss_val = transl_loss_val, rot_loss_val
+        # Loss on joint angles
+        conf_loss_val = self.L2_loss(
+            fake_data['joint_conf'].to(self.FFHGAN.device).float(), 
+            real_data['joint_conf'].to(self.FFHGAN.device).float()
+        )
+
+        # Wasserstein Generator fake loss
+
+        # # L = -1/N * sum(1 - pred_score) if target label is always 0
+        # gen_loss_fake = - torch.mean(torch.ones_like(fake_score) - fake_score)
+
+        # L = -1/N * sum(pred_score) if target label is always 1 (fooling discriminator)
+        gen_loss_fake = - torch.mean(fake_score)
+        
+        # Put all losses in one dict and weigh them individually
+        loss_dict = {
+            'gen_loss_fake' : gen_loss_fake,
+            'transl_loss': self.transl_coef * transl_loss_val,
+            'rot_loss': self.rot_coef * rot_loss_val,
+            'conf_loss': self.conf_coef * conf_loss_val
+        }
+        total_loss = gen_loss_fake + (loss_dict['transl_loss'] + loss_dict['rot_loss'] + loss_dict['conf_loss'])
+        loss_dict["total_loss_gen"] = total_loss
+        self.last_loss_dict_gen = loss_dict
+        
+        return total_loss, loss_dict
+    
+    def compute_loss_ffhgan_generator(self, real_data, fake_data, fake_score):
+        """ The model should output a 6D representation of a rotation, which then gets mapped back to
+        """
+        # Pose loss, translation rotation
+        gt_transl_rot_matrix = {
+            'transl': real_data['transl'].to(self.FFHGAN.device).float(),
+            'rot_matrix': real_data['rot_matrix'].to(self.FFHGAN.device).float()
+        }
+        transl_loss_val, rot_loss_val = self.rec_pose_loss(fake_data, gt_transl_rot_matrix,
+                                                           self.L2_loss, self.device)
+        transl_loss_val, rot_loss_val = transl_loss_val, rot_loss_val
+        # Loss on joint angles
+        conf_loss_val = self.L2_loss(
+            fake_data['joint_conf'].to(self.FFHGAN.device).float(), 
+            real_data['joint_conf'].to(self.FFHGAN.device).float()
+        )
+
+        # Generator fake loss
+        # BCE = -1/N * sum(target*log(pred_score)+(1-target)*log(1-pred_score))
+        # BCE = -1/N * sum(log(pred_score)) if target label is always 1 (fooling discriminator)
+        # BCE = -1/N * sum(log(1 - pred_score)) if target label is always 0
+        gen_loss_fake = self.bce_weight * self.BCE_loss(
+                                                fake_score, 
+                                                torch.ones_like(fake_score)
+                                                )
+        # Put all losses in one dict and weigh them individually
+        loss_dict = {
+            'gen_loss_fake' : gen_loss_fake,
+            'transl_loss': self.transl_coef * transl_loss_val,
+            'rot_loss': self.rot_coef * rot_loss_val,
+            'conf_loss': self.conf_coef * conf_loss_val
+        }
+        total_loss = gen_loss_fake + (loss_dict['transl_loss'] + loss_dict['rot_loss'] + loss_dict['conf_loss'])
+        loss_dict["total_loss_gen"] = total_loss
+        self.last_loss_dict_gen = loss_dict
         return total_loss, loss_dict
 
     def eval_ffhevaluator_accuracy(self, data):
@@ -195,6 +351,7 @@ class FFHNet(object):
 
         return pos_acc, neg_acc, pred_label_np, gt_label_np
 
+
     def eval_ffhevaluator_loss(self, data):
         self.FFHEvaluator.eval()
 
@@ -205,12 +362,45 @@ class FFHNet(object):
         return loss_dict_ffhevaluator
 
     def eval_ffhgenerator_loss(self, data):
-        self.FFHGenerator.eval()
+        self.FFHGAN.eval()
 
         with torch.no_grad():
-            data_rec = self.FFHGenerator(data)
+            data_rec = self.FFHGAN(data)
             _, loss_dict_ffhgenerator = self.compute_loss_ffhgenerator(data_rec)
 
+        return loss_dict_ffhgenerator
+    
+    def eval_ffhgan_generator_loss(self, real_data):
+        self.FFHGAN.eval()
+        with torch.no_grad():
+            n_samples = real_data["bps_object"].shape[0]
+            Zgen = torch.randn((n_samples, self.FFHGAN.latentD), dtype=self.FFHGAN.dtype, device=self.FFHGAN.device)
+            # Zgen = torch.randn((n_samples, self.FFHGAN.latentD), dtype=self.FFHGAN.dtype)
+            # Run forward pass of ffhgenerator and reconstruct the data
+            y_fake = self.FFHGAN.generator(Zgen, real_data["bps_object"].to(self.FFHGAN.device))
+            fake_rot_6D = y_fake["rot_6D"]
+            fake_transl = y_fake["transl"]
+            fake_joint_conf = y_fake["joint_conf"]
+            y_fake["rot_matrix"] = utils.rot_matrix_from_ortho6d(y_fake["rot_6D"])
+
+            fake_data = {
+                "bps_object": real_data["bps_object"],
+                "rot_matrix": fake_rot_6D,
+                # "rot_matrix": y_fake["rot_matrix"],
+                "rot_6D": fake_rot_6D,
+                "transl": fake_transl,
+                "joint_conf": fake_joint_conf
+            }
+            # Train Generator
+            fake_data_gen = fake_data
+            fake_data_gen["rot_matrix"] = y_fake["rot_matrix"]
+            fake_score_gen = self.FFHGAN.discriminator(fake_data_gen)
+            # Compute loss based on reconstructed data
+            real_data["rot_matrix"] = real_data["rot_matrix"].view(real_data["bps_object"].shape[0], -1)
+            is_wgan = self.is_wgan
+            gen_loss = self.compute_loss_ffhgan_generator_wass if is_wgan else self.compute_loss_ffhgan_generator
+            _, loss_dict_ffhgenerator = gen_loss(real_data, fake_data, fake_score_gen)
+            
         return loss_dict_ffhgenerator
 
     def evaluate_grasps(self, bps, grasps, thresh=0.5, return_arr=True):
@@ -289,8 +479,59 @@ class FFHNet(object):
         # print("Filtering took: %.4f" % (time.time() - start))
 
         return filt_grasps
+    
+    def filter_grasps_discriminator(self, bps, grasps, thresh=0.5, return_arr=True):
+        """ Takes in grasps generated by the FFHGenerator for a bps encoding of an object and removes every grasp#
+        with predicted success probability less than thresh
 
-    def generate_grasps(self, bps, n_samples, return_arr=True, z_offset=-0.019):
+        Args:
+            bps (np array): Bps encoding of the object. n*4096
+            grasps (dict): Dict holding the grasp information. keys: transl n*3, rot_matrix n*3*3, joint_conf n*15
+            thresh (float, optional): Reject grasps with lower success p than this. Defaults to 0.5.
+        """
+        # start = time.time()
+        n_samples = grasps['rot_matrix'].shape[0]
+        if len(bps.shape) > 1:
+            bps = bps.squeeze()
+        bps = np.tile(bps, (n_samples, 1))
+
+        grasps['bps_object'] = bps
+        grasps_t = utils.dict_to_tensor(grasps, device=self.device, dtype=self.dtype)
+
+        p_success = self.FFHGAN.discriminator(grasps_t).squeeze()  # tensor([...])
+        sorted_score, indices = p_success.sort(descending=True)
+
+        if sorted_score[0] < thresh:
+            raise ValueError("In total predicted ", n_samples, " grasps, but best score ",
+                             sorted_score[0], " is still lower than thresh", thresh)
+
+        indices = indices[sorted_score > thresh]
+        sorted_score = sorted_score[sorted_score > thresh]
+
+        filt_grasps = {}
+
+        # sort the grasps according to score and remove the grasps with score < thresh
+        for k, v in grasps_t.items():
+            index = indices.clone()
+            dim = 0
+
+            # Dynamically adjust dimensions for sorting
+            while len(v.shape) > len(index.shape):
+                dim += 1
+                index = index[..., None]
+                index = torch.cat(v.shape[dim] * (index, ), dim)
+
+            # Sort grasps
+            filt_grasps[k] = torch.gather(input=v, dim=0, index=index)
+
+        # Cast to python (if required)
+        if return_arr:
+            filt_grasps = {k: v.cpu().detach().numpy() for k, v in filt_grasps.items()}
+        # print("Filtering took: %.4f" % (time.time() - start))
+
+        return filt_grasps
+
+    def generate_grasps(self, bps, n_samples, return_arr=True, z_offset=0.025):
         """Samples n grasps either from combining given bps encoding with z or sampling from random normal distribution.
 
         Args:
@@ -309,7 +550,7 @@ class FFHNet(object):
         bps = np.tile(bps, (n_samples, 1))
         bps_tensor = torch.tensor(bps, dtype=self.dtype, device=self.device)
 
-        return self.FFHGenerator.generate_poses(bps_tensor, return_arr=return_arr, z_offset=z_offset)
+        return self.FFHGAN.generate_poses(bps_tensor, return_arr=return_arr, z_offset=z_offset)
 
     def improve_grasps_gradient_based(self, data, last_success):
         """Apply small gradient steps to improve an initial grasp.
@@ -406,16 +647,17 @@ class FFHNet(object):
             load_path = os.path.join(load_path, str(epoch) + '_gen_net.pt')
 
         ckpt = torch.load(load_path, map_location=self.device)
-        self.FFHGenerator.load_state_dict(ckpt['ffhgenerator_state_dict'])
+        self.FFHGAN.load_state_dict(ckpt['ffhgenerator_state_dict'])
 
         if self.cfg["is_train"]:
             print("Load TRAIN mode")
+            # TODO: load state dict for genertor and discriminator
             self.optim_ffhgenerator.load_state_dict(ckpt['optim_ffhgenerator_state_dict'])
             self.scheduler_ffhgenerator.load_state_dict(ckpt['scheduler_ffhgenerator_state_dict'])
-            self.FFHGenerator.train()
+            self.FFHGAN.train()
         else:
             print("Network in EVAL mode")
-            self.FFHGenerator.eval()
+            self.FFHGAN.eval()
 
     def refine_grasps(self, data, refine_method, num_refine_steps=10, dtype=torch.float32):
         """ Refine sampled and ranked grasps.
@@ -492,19 +734,25 @@ class FFHNet(object):
         """
         save_path = os.path.join(self.cfg["save_dir"], net_name + '_gen_net.pt')
         if len(self.cfg["gpu_ids"]) > 1:
-            ffhgenerator_state_dict = self.FFHGenerator.module.cpu().state_dict()
+            ffhgenerator_state_dict = self.FFHGAN.module.cpu().state_dict()
         else:
-            ffhgenerator_state_dict = self.FFHGenerator.cpu().state_dict()
+            ffhgenerator_state_dict = self.FFHGAN.cpu().state_dict()
         torch.save(
             {
                 'epoch': epoch,
                 'ffhgenerator_state_dict': ffhgenerator_state_dict,
                 'optim_ffhgenerator_state_dict': self.optim_ffhgenerator.state_dict(),
                 'scheduler_ffhgenerator_state_dict': self.scheduler_ffhgenerator.state_dict(),
+
+                'optim_ffhgan_generator_state_dict': self.optim_ffhgan_generator.state_dict(),
+                'scheduler_ffhgan_generator_state_dict': self.scheduler_ffhgan_generator.state_dict(),
+
+                'optim_ffhgan_discriminator_state_dict': self.optim_ffhgan_discriminator.state_dict(),
+                'scheduler_ffhgan_discriminator_state_dict': self.scheduler_ffhgan_discriminator.state_dict(),
             }, save_path)
 
         if torch.cuda.is_available():
-            self.FFHGenerator.to(torch.device('cuda:{}'.format(self.cfg["gpu_ids"][0])))
+            self.FFHGAN.to(torch.device('cuda:{}'.format(self.cfg["gpu_ids"][0])))
 
     def update_estop(self, eval_loss_dict):
         """"[Never used]"
@@ -553,10 +801,10 @@ class FFHNet(object):
         """ Receives a dict with all the input data to the ffhgenerator, sets the model input and runs one complete update step.
         """
         # Make sure net is in train mode
-        self.FFHGenerator.train()
+        self.FFHGAN.train()
 
         # Run forward pass of ffhgenerator and reconstruct the data
-        data_rec = self.FFHGenerator(data)
+        data_rec = self.FFHGAN(data)
 
         # Compute loss based on reconstructed data
         total_loss_ffhgenerator, loss_dict_ffhgenerator = self.compute_loss_ffhgenerator(data_rec)
@@ -568,19 +816,71 @@ class FFHNet(object):
 
         # Return the loss
         return loss_dict_ffhgenerator
+    
+    def update_ffhgan(self, real_data, is_train_gen = True):
+        """ Receives a dict with all the input data to the ffhgenerator, sets the model input and runs one complete update step.
+        """
+        # Loss selection:
+        is_wgan = self.is_wgan
+        disc_loss = self.compute_loss_ffhgan_discriminator_wass if is_wgan else self.compute_loss_ffhgan_discriminator
+        gen_loss = self.compute_loss_ffhgan_generator_wass if is_wgan else self.compute_loss_ffhgan_generator
+        
+        # Make sure net is in train mode
+        self.FFHGAN.train()
 
-if __name__ == '__main__':
-    # test sampling
-    path2pcd_enc = '/home/vm/pcd_enc.npy'
-    from FFHNet.config.config import Config
-    path = os.path.dirname(os.path.abspath(__file__))
-    BASE_PATH = os.path.split(os.path.split(path)[0])[0]
+        #### Train Discriminator ####
+        n_samples = real_data["bps_object"].shape[0]
+        Zgen = torch.randn((n_samples, self.FFHGAN.latentD), dtype=self.FFHGAN.dtype, device=self.FFHGAN.device)
+        # Run forward pass of ffhgenerator and reconstruct the data
+        y_fake = self.FFHGAN.generator(Zgen, real_data["bps_object"].to(self.FFHGAN.device))
+        fake_rot_6D = y_fake["rot_6D"]
+        fake_transl = y_fake["transl"]
+        fake_joint_conf = y_fake["joint_conf"]
+        y_fake["rot_matrix"] = utils.rot_matrix_from_ortho6d(y_fake["rot_6D"])
 
-    path = os.path.join(BASE_PATH, "FFHNet/config/config_ffhnet_vm_test.yaml")
-    config = Config(path)
-    cfg = config.parse()
-    ffhnet = FFHNet(cfg)
-    # ffhnet.load_ffhgenerator(10)
-    # bps = np.load(path2pcd_enc)
-    # grasps = ffhnet.generate_grasps(bps, 20, return_arr=True)
-    # ffhnet.filter_grasps(bps, grasps, thresh=0., return_arr=True)
+        fake_data_disc = {
+            "bps_object": real_data["bps_object"],
+            # "rot_matrix": fake_rot_6D.detach(),
+            "rot_matrix": y_fake["rot_matrix"].detach(),
+            # "rot_6D": fake_rot_6D.detach(),
+            "transl": fake_transl.detach(),
+            "joint_conf": fake_joint_conf.detach()
+        }
+
+        # Pass both real and fake data through the discriminator
+        real_score = self.FFHGAN.discriminator(real_data)
+        fake_score = self.FFHGAN.discriminator(fake_data_disc)
+        # fake_score = self.FFHGAN.discriminator(fake_data)
+        total_loss_disc, loss_dict_disc = disc_loss(real_score, fake_score, real_data, fake_data_disc)
+        self.optim_ffhgan_discriminator.zero_grad()
+        total_loss_disc.backward()
+        self.optim_ffhgan_discriminator.step()
+
+        #### Train Generator ####
+        if is_train_gen:
+            fake_data = {
+                "bps_object": real_data["bps_object"],
+                "rot_matrix": fake_rot_6D,
+                # "rot_matrix": y_fake["rot_matrix"],
+                "rot_6D": fake_rot_6D,
+                "transl": fake_transl,
+                "joint_conf": fake_joint_conf
+            }
+            fake_data_gen = fake_data
+            fake_data_gen["rot_matrix"] = y_fake["rot_matrix"]
+            fake_score_gen = self.FFHGAN.discriminator(fake_data_gen)
+            # Compute loss based on reconstructed data
+            real_data["rot_matrix"] = real_data["rot_matrix"].view(real_data["bps_object"].shape[0], -1)
+            total_loss_gen, loss_dict_gen = gen_loss(real_data, fake_data, fake_score_gen)
+
+            # Zero gradients, backprop new loss gradient, run one step
+            self.optim_ffhgan_generator.zero_grad()
+            total_loss_gen.backward()
+            self.optim_ffhgan_generator.step()
+        else:
+            loss_dict_gen = self.last_loss_dict_gen
+        # Return the loss
+        # loss_dict = loss_dict_disc | loss_dict_gen
+        loss_dict = loss_dict_disc.copy()
+        loss_dict.update(loss_dict_gen)
+        return loss_dict

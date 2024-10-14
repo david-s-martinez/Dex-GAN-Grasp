@@ -9,7 +9,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import numpy as np
-from FFHNet.utils.grasp_data_handler import GraspDataHandlerVae
+from DexGanGrasp.utils.grasp_data_handler import GraspDataHandlerVae
 
 try:
     from urdfpy import URDF
@@ -21,9 +21,8 @@ import pyrender
 from sklearn.metrics import confusion_matrix
 from sklearn.utils.multiclass import unique_labels
 import trimesh
-from FFHNet.config.config import Config
-from FFHNet.models.ffhnet import FFHNet
-from FFHNet.utils import utils
+from DexGanGrasp.config.config import Config
+from DexGanGrasp.utils import utils
 
 path = os.path.dirname(os.path.abspath(__file__))
 BASE_PATH = os.path.split(os.path.split(path)[0])[0]
@@ -387,14 +386,14 @@ def show_generated_grasp_distribution(pcd_path,
             vis.add_geometry(f)
 
         ctr = vis.get_view_control()
-        param = o3d.io.read_pinhole_camera_parameters(os.path.join(BASE_PATH,"FFHNet/config/view_point.json"))
+        param = o3d.io.read_pinhole_camera_parameters(os.path.join(BASE_PATH,"DexGanGrasp/config/view_point.json"))
         ctr.convert_from_pinhole_camera_parameters(param)
-        vis.get_render_option().load_from_json(os.path.join(BASE_PATH,"FFHNet/config/render_opt.json"))
+        vis.get_render_option().load_from_json(os.path.join(BASE_PATH,"DexGanGrasp/config/render_opt.json"))
         vis.run()
         vis.destroy_window()
-        # vis.get_render_option().save_to_json("/home/vm/hand_ws/src/FFHNet/render_opt.json")
+        # vis.get_render_option().save_to_json("/home/vm/hand_ws/src/DexGanGrasp/render_opt.json")
         # param = vis.get_view_control().convert_to_pinhole_camera_parameters()
-        # o3d.io.write_pinhole_camera_parameters("/home/vm/hand_ws/src/FFHNet/view_point.json",
+        # o3d.io.write_pinhole_camera_parameters("/home/vm/hand_ws/src/DexGanGrasp/view_point.json",
         #                                        param)
         # l = raw_input("Save image?: ")
         # if l == 'y':
@@ -843,146 +842,3 @@ def plot_filtered_grasps_per_threshold(path_to_csv):
         '/home/vm/Documents/thesis/master_thesis/figures/chapter_05/eva_eval/grasps_above_thresh.pdf'
     )
     fig.savefig(save_path)
-
-
-# def plot_ffhevaluator_accuracy_curve(acc_type, exp_type='layers'):
-#     plt.style.use(['science', 'grid'])
-#     matplotlib.rcParams.update({'font.size': 12})
-#     if acc_type == 'mean':
-#         n = 'Mean'
-#     elif acc_type == 'positive':
-#         n = 'Positive'
-#     elif acc_type == 'negative':
-#         n = 'Negative'
-#     pparam = dict(title='Evaluation Accuracy: ' + n,
-#                   xlabel='Epoch', ylabel='Accuracy')
-
-#     # Choose experiments
-#     assert (exp_type == 'layers' or exp_type == 'neurons')
-#     accs_exps = exps[exp_type]
-
-#     epochs = [0, 5, 10, 15, 20, 25, 30, 35]
-
-#     mean_accs = []
-#     mean_acc = []
-#     keys = accs_exps.keys() if isinstance(accs_exps, collections.OrderedDict) else sorted(
-#         accs_exps.keys())
-#     for key in keys:
-#         mean_acc = []
-#         (acc_pos, acc_neg) = accs_exps[key]
-#         for (p, n) in zip(acc_pos, acc_neg):
-#             if acc_type == 'mean':
-#                 mean_acc.append((p + n) / 2.)
-#             elif acc_type == 'positive':
-#                 mean_acc.append(p)
-#             elif acc_type == 'negative':
-#                 mean_acc.append(n)
-#         mean_accs.append(mean_acc)
-
-#     fig, ax = plt.subplots()
-#     for mean_acc, label in zip(mean_accs, keys):
-#         ax.plot(epochs, mean_acc, label=label)
-#     ax.legend()
-#     ax.autoscale(tight=True)
-#     ax.set(**pparam)
-#     ax.set_ylim([0.6, 0.95])
-#     save_path = os.path.join('figures/ffheva_exps', exp_type,
-#                              exp_type + '_eva_accuracy_' + acc_type + '.pdf')
-#     fig.savefig(save_path)
-
-#     save_path_thesis = '/home/vm/Documents/thesis/master_thesis/figures/chapter_05/eva_training'
-#     save_path = os.path.join(save_path_thesis, exp_type,
-#                              exp_type + '_eva_accuracy_' + acc_type + '.pdf')
-#     fig.savefig(save_path)
-
-#     plt.show()
-
-
-def plot_ffhevaluator_training_curve(log_path):
-    # mean_acc
-    pass
-
-
-def icra_22_video_submission_visualization():
-    # define paths
-    pcd_path = "/home/vm/data/real_objects/object/mustard_bottle_02.pcd"
-    bps_path = pcd_path.replace(".pcd", ".npy")
-    load_path_gen = '/home/vm/hand_ws/src/FFHNet/checkpoints/2021-04-09T15_15_03-gen_01'
-    load_path_eva = '/home/vm/hand_ws/src/FFHNet/checkpoints/2021-04-28T15_47_17-rb_03_512'
-    load_epoch_gen = 10
-    load_epoch_eva = 30
-    n_samples = 1000
-
-    # Load ffhnet
-    config = Config()
-    cfg = config.parse("/home/vm/hand_ws/src/ffhnet/FFHNet/config/config_ffhnet_vm_debug.yaml")
-    ffhnet = FFHNet(cfg)
-    ffhnet.load_ffhgenerator(epoch=load_epoch_gen, load_path=load_path_gen)
-    ffhnet.load_ffhevaluator(epoch=load_epoch_eva, load_path=load_path_eva)
-
-    # Load BPS and generate grasps
-    obj_bps = np.load(bps_path)
-    grasps = ffhnet.generate_grasps(
-        obj_bps, n_samples=n_samples, return_arr=True)
-
-    # Show only grasps above threshold
-    grasps = ffhnet.filter_grasps(obj_bps, grasps, thresh=0.77)
-
-    # Iterate over grasps
-    for j in range(n_samples):
-        # Get the grasp sample
-        rot_matrix = grasps['rot_matrix'][j, :, :]
-        transl = grasps['transl'][j, :]
-        transl[1] += 0.015
-        transl[2] += 0.01
-        joint_conf = grasps['joint_conf'][j, :]
-
-        # Get the palm pose in centroid frame
-        palm_pose_centr = utils.hom_matrix_from_transl_rot_matrix(
-            transl, rot_matrix)
-
-        # Show hand and grasp
-        show_grasp_and_object(pcd_path, palm_pose_centr, joint_conf)
-
-        # Show distribution with grasp highlighted
-        show_generated_grasp_distribution(
-            pcd_path, grasps, highlight_idx=j, save_ix=j)
-
-
-if __name__ == '__main__':
-    icra_22_video_submission_visualization()
-    # plot_threshold_success_curve()
-    # path_to_csv = '/home/vm/hand_ws/src/FFHNet/results/filt_diff_thresh.csv'
-    # plot_filtered_grasps_per_threshold(path_to_csv)
-    # show_individual_ground_truth_grasps('kit_BakingSoda',
-    #                                     '/home/vm/data/ffhnet-data/ffhnet-grasp.h5',
-    #                                     outcome='collision')
-
-    # path = os.path.join(BASE_PATH, 'checkpoints/2021-04-28T15_47_17/total_loss_eva.csv')
-    # df = pd.read_csv(path)
-    # epochs = [5, 10, 15, 20, 25, 30]
-    # epochs = [35]
-    # exp_type = 'neurons'
-    # plot_ffhevaluator_accuracy_curve('positive', exp_type)
-    # plot_ffhevaluator_accuracy_curve('negative', exp_type)
-    # plot_ffhevaluator_accuracy_curve('mean', exp_type)
-    # pred_labels = np.load(
-    #     os.path.join(BASE_PATH,
-    #                  'checkpoints/2021-04-28T15_47_17-rb_03_512/eval/20_pred_labels.npy'))
-    # gt_labels = np.load(
-    #     os.path.join(BASE_PATH, 'checkpoints/2021-04-28T15_47_17-rb_03_512/eval/30_gt_labels.npy'))
-    # folder = '2021-05-01T17_10_15-rb_03_1024'
-    # folder = '2021-04-28T15_47_17-rb_03_512'
-    # folder = '2021-04-30T19_25_36-rb_02'
-    # folder = 'q2021-04-29T19_32_54-rb_04'
-    # for epoch in epochs:
-    #     pred_labels = np.load(
-    #         os.path.join(BASE_PATH, 'checkpoints', folder, 'eval',
-    #                      str(epoch) + '_pred_labels.npy'))
-    #     gt_labels = np.load(
-    #         os.path.join(BASE_PATH,
-    #                      'checkpoints/2021-05-01T17_10_15-rb_03_1024/eval/25_gt_labels.npy'))
-    #     plot_confusion_matrix(1 - gt_labels,
-    #                           1 - pred_labels,
-    #                           classes=['success', 'failure'],
-    #                           normalize=True)

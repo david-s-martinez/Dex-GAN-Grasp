@@ -7,21 +7,21 @@ import torch
 from torch.utils.data import DataLoader
 import argparse
 
-from FFHNet.config.config import Config
-from FFHNet.data.bps_encoder import BPSEncoder
-from FFHNet.data.ffhevaluator_data_set import (FFHEvaluatorDataSet,
+from DexGanGrasp.config.config import Config
+from DexGanGrasp.data.bps_encoder import BPSEncoder
+from DexGanGrasp.data.ffhevaluator_data_set import (FFHEvaluatorDataSet,
                                                FFHEvaluatorPCDDataSet)
-from FFHNet.data.ffhgenerator_data_set import FFHGeneratorDataSet
-from FFHNet.models.ffhgan import FFHGANet
-from FFHNet.models.networks import FFHGAN
-from FFHNet.utils import utils, visualization, writer
-from FFHNet.utils.writer import Writer
+from DexGanGrasp.data.ffhgenerator_data_set import FFHGeneratorDataSet
+from DexGanGrasp.models.ffhgan import FFHGANet
+from DexGanGrasp.models.networks import FFHGAN
+from DexGanGrasp.utils import utils, visualization
+from DexGanGrasp.utils.writer import Writer
 ROOT_PATH = os.path.dirname(os.path.abspath(__file__))
 BASE_PATH = os.path.split(os.path.split(ROOT_PATH)[0])[0]
 parser = argparse.ArgumentParser(
 formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('--config', help='Path to template image.',
-                    default='FFHNet/config/config_ffhnet_vm_debug.yaml')
+                    default='DexGanGrasp/config/config_ffhnet_vm_debug.yaml')
 args = parser.parse_args()
 
 def filter(ffhgan, obj_pcd_path, obj_bps, grasps, n_samples, is_discriminator = False, thresh_succ_list = [0.5, 0.75, 0.90] ):
@@ -130,7 +130,7 @@ def train():
     parser = argparse.ArgumentParser(
     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--config', help='Path to template image.',
-                        default='FFHNet/config/config_ffhgan.yaml')
+                        default='DexGanGrasp/config/config_ffhgan.yaml')
     args = parser.parse_args()
 
     # load configuration params
@@ -214,10 +214,10 @@ if __name__ == '__main__':
         # best_epoch = 24
 
         # Best GAN so far:
-        gen_path = "checkpoints/ffhgan/2024-03-15T15_20_19_ffhgan_lr_0.0001_bs_1000"
-        best_epoch = 63
-        # gen_path = "checkpoints/ffhgan/2024-03-10T17_31_55_ffhgan_lr_0.0001_bs_1000"
-        # best_epoch = 32
+        # gen_path = "checkpoints/ffhgan/2024-03-15T15_20_19_ffhgan_lr_0.0001_bs_1000"
+        # best_epoch = 63
+        gen_path = "checkpoints/ffhgan/2024-03-10T17_31_55_ffhgan_lr_0.0001_bs_1000"
+        best_epoch = 32
 
         # is_discriminator = True
         # thresh_succ_list = [0.15, 0.20, 0.25]
@@ -230,7 +230,7 @@ if __name__ == '__main__':
         # New evaluator:checkpoints/ffhevaluator/2024-06-23_ffhevaluator
         parser.add_argument('--eva_path', default='checkpoints/ffhevaluator/2024-06-23_ffhevaluator', help='path to FFHEvaluator model')
         parser.add_argument('--load_eva_epoch', type=int, default=30, help='epoch of FFHEvaluator model')
-        parser.add_argument('--config', type=str, default='FFHNet/config/config_ffhgan.yaml')
+        parser.add_argument('--config', type=str, default='DexGanGrasp/config/config_ffhgan.yaml')
 
         args = parser.parse_args()
 

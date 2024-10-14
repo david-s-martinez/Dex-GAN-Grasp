@@ -10,15 +10,13 @@ import torch
 from torch.utils.data import DataLoader
 import math
 import numpy as np
-from eval import run_eval_gan
-from FFHNet.config.config import Config
-from FFHNet.data.ffhevaluator_data_set import FFHEvaluatorDataSet, FFHEvaluatorPCDDataSet
-from FFHNet.data.ffhgenerator_data_set import FFHGeneratorDataSet
-from FFHNet.utils.writer import Writer
-from FFHNet.utils import utils, visualization, writer
-from FFHNet.models.ffhgan import FFHGANet
-from FFHNet.models.ffhnet import FFHNet
-from FFHNet.utils.grasp_data_handler import GraspDataHandlerVae
+from DexGanGrasp.config.config import Config
+from DexGanGrasp.data.ffhevaluator_data_set import FFHEvaluatorDataSet, FFHEvaluatorPCDDataSet
+from DexGanGrasp.data.ffhgenerator_data_set import FFHGeneratorDataSet
+from DexGanGrasp.utils.writer import Writer
+from DexGanGrasp.utils import utils, visualization, writer
+from DexGanGrasp.models.ffhgan import FFHGANet
+from DexGanGrasp.utils.grasp_data_handler import GraspDataHandlerVae
 import csv
 ROOT_PATH = os.path.dirname(os.path.abspath(__file__))
 
@@ -234,10 +232,7 @@ def main(
     config = Config(config_path)
     cfg = config.parse()
 
-    if is_gan:
-        model = FFHGANet(cfg)
-    else:
-        model = FFHNet(cfg)
+    model = FFHGANet(cfg)
 
     if is_discriminator and is_gan:
 
@@ -344,14 +339,6 @@ if __name__ == '__main__':
         torch.multiprocessing.set_start_method('spawn')
         parser = argparse.ArgumentParser()
         z_offset = 0.0
-
-        # # Best VAE so far:
-        # gen_path = "checkpoints/ffhnet/ffhgenerator_bs5012"
-        # best_epoch = 30
-        # z_offset = -0.019
-        # gen_path = "checkpoints/ffhnet/2024-06-07T14_35_31_ffhnet_lr_0.0001_bs_1000"
-        # best_epoch = 19
-
         # # Best GAN so far:
         # gen_path = "checkpoints/ffhgan/2024-03-10T17_31_55_ffhgan_lr_0.0001_bs_1000"
         # best_epoch = 45
@@ -383,7 +370,7 @@ if __name__ == '__main__':
         # parser.add_argument('--eva_path', default='models/ffhevaluator', help='path to FFHEvaluator model')
         parser.add_argument('--eva_path', default='checkpoints/ffhevaluator/2024-06-23_ffhevaluator', help='path to FFHEvaluator model')
         parser.add_argument('--load_eva_epoch', type=int, default=30, help='epoch of FFHEvaluator model')
-        parser.add_argument('--config', type=str, default='FFHNet/config/config_ffhgan.yaml')
+        parser.add_argument('--config', type=str, default='DexGanGrasp/config/config_ffhgan.yaml')
 
         args = parser.parse_args()
 

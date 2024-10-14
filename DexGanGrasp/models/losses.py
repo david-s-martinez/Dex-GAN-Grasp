@@ -1,5 +1,5 @@
 import torch
-import FFHNet.utils.utils as utils
+import DexGanGrasp.utils.utils as utils
 
 
 def accuracy_evaluator(pred_label, gt_label):

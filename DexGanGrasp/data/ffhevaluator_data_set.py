@@ -9,8 +9,8 @@ import sys
 from time import time
 
 sys.path.insert(0,os.path.join(os.path.dirname(os.path.abspath(__file__)),'..','..'))
-from FFHNet.utils.grasp_data_handler import GraspDataHandlerVae
-from FFHNet.utils import utils, visualization
+from DexGanGrasp.utils.grasp_data_handler import GraspDataHandlerVae
+from DexGanGrasp.utils import utils, visualization
 
 class FFHEvaluatorDataSet(data.Dataset):
     def __init__(self, cfg, eval=False,dtype=torch.float32):
@@ -311,11 +311,11 @@ class FFHEvaluatorPCDDataSet(FFHEvaluatorDataSet):
 
 
 if __name__ == '__main__':
-    from FFHNet.config.config import Config
+    from DexGanGrasp.config.config import Config
     path = os.path.dirname(os.path.abspath(__file__))
     BASE_PATH = os.path.split(os.path.split(path)[0])[0]
 
-    path = os.path.join(BASE_PATH, "FFHNet/config/config_ffhnet_vm_test.yaml")
+    path = os.path.join(BASE_PATH, "DexGanGrasp/config/config_ffhnet_vm_test.yaml")
     config = Config(path)
     cfg = config.parse()
     gds = FFHEvaluatorDataSet(cfg,eval=False)

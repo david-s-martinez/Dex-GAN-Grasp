@@ -6,7 +6,7 @@ sys.path.append('/home/dm/panda_ws/inference_container/Multifinger-Net-dev')
 
 import numpy as np
 import pyrender
-from FFHNet.utils import utils
+from DexGanGrasp.utils import utils
 from urdfpy import URDF
 from copy import deepcopy
 import trimesh

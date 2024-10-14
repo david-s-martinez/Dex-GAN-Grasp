@@ -14,7 +14,7 @@ try:
 except:
     print("[WARNING] bps_torch not installed.")
 
-from FFHNet.utils.definitions import HAND_CFG, ROBOTIQ_CFG
+from DexGanGrasp.utils.definitions import HAND_CFG, ROBOTIQ_CFG
 
 def translate_along_axis(out, axis, translation):
     """

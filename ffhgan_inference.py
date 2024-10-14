@@ -14,18 +14,15 @@ import copy
 import cv2
 import torch
 import argparse
-from FFHNet.config.config import Config
-from FFHNet.data.bps_encoder import BPSEncoder
-from FFHNet.data.ffhevaluator_data_set import (FFHEvaluatorDataSet,
+from DexGanGrasp.config.config import Config
+from DexGanGrasp.data.bps_encoder import BPSEncoder
+from DexGanGrasp.data.ffhevaluator_data_set import (FFHEvaluatorDataSet,
                                                FFHEvaluatorPCDDataSet)
-from FFHNet.data.ffhgenerator_data_set import FFHGeneratorDataSet
-from FFHNet.models.ffhgan import FFHGANet
-
-from FFHNet.models.ffhnet import FFHNet
-
-from FFHNet.models.networks import FFHGAN
-from FFHNet.utils import utils, visualization, writer
-from FFHNet.utils.writer import Writer
+from DexGanGrasp.data.ffhgenerator_data_set import FFHGeneratorDataSet
+from DexGanGrasp.models.ffhgan import FFHGANet
+from DexGanGrasp.models.networks import FFHGAN
+from DexGanGrasp.utils import utils, visualization, writer
+from DexGanGrasp.utils.writer import Writer
 import bps_torch.bps as b_torch
 from vlpart.LMP import run_lmp
 
@@ -39,7 +36,7 @@ sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..','v
 
 from inference.segmentation import PlaneSegmentation
 from inference.realsense import RealSense
-from FFHNet.utils.filter_grasps_given_mask import filter_grasps_given_mask, sort_grasps
+from DexGanGrasp.utils.filter_grasps_given_mask import filter_grasps_given_mask, sort_grasps
 
 # Data collection
 # from inference.ffhflow_grasp_viewer import show_grasp_and_object_given_pcd
@@ -130,7 +127,7 @@ parser.add_argument('--load_gen_epoch', type=int, default=best_epoch, help='epoc
 # New evaluator:checkpoints/ffhevaluator/2024-06-23_ffhevaluator
 parser.add_argument('--eva_path', default='checkpoints/ffhevaluator/2024-06-23_ffhevaluator', help='path to FFHEvaluator model')
 parser.add_argument('--load_eva_epoch', type=int, default=30, help='epoch of FFHEvaluator model')
-parser.add_argument('--config', type=str, default='FFHNet/config/config_ffhgan.yaml')
+parser.add_argument('--config', type=str, default='DexGanGrasp/config/config_ffhgan.yaml')
 
 args = parser.parse_args()
 
@@ -142,10 +139,7 @@ config_path = args.config
 config = Config(config_path)
 cfg = config.parse()
 
-if 'ffhgan' in gen_path:
-    model = FFHGANet(cfg)
-else:
-    model = FFHNet(cfg)
+model = FFHGANet(cfg)
 # print(model)
 base_data_bath = os.path.join(ROOT_PATH,'data','real_objects')
 model.load_ffhgenerator(epoch=load_epoch_gen, load_path=load_path_gen)

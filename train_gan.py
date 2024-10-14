@@ -4,19 +4,113 @@ import argparse
 import time
 import torch
 from torch.utils.data import DataLoader
+import numpy as np
+import os
+from DexGanGrasp.config.config import Config
+from DexGanGrasp.data.ffhevaluator_data_set import FFHEvaluatorDataSet, FFHEvaluatorPCDDataSet
+from DexGanGrasp.data.ffhgenerator_data_set import FFHGeneratorDataSet
+from DexGanGrasp.utils.writer import Writer
+from DexGanGrasp.models.ffhgan import FFHGANet
 
-from eval import run_eval_gan
-from FFHNet.config.config import Config
-from FFHNet.data.ffhevaluator_data_set import FFHEvaluatorDataSet, FFHEvaluatorPCDDataSet
-from FFHNet.data.ffhgenerator_data_set import FFHGeneratorDataSet
-from FFHNet.utils.writer import Writer
-from FFHNet.models.ffhgan import FFHGANet
+def update_mean_losses(mean_losses, new_losses):
+    for key in mean_losses.keys():
+        mean_losses[key] += new_losses[key].detach().cpu().numpy()
+    return mean_losses
+
+def run_eval_gan_gen(ffhgan, cfg):
+    print('Running eval for FFHGAN Generator')
+    dset = FFHGeneratorDataSet(cfg, eval = True)
+    eval_loader = DataLoader(dset, batch_size=cfg["batch_size"], shuffle=False)
+
+    mean_losses = {
+        'gen_loss_fake' : 0,
+        'transl_loss': 0,
+        'rot_loss' : 0,
+        'conf_loss' : 0,
+        'total_loss_gen' : 0
+        }
+
+    for i, data in enumerate(eval_loader):
+        loss_dict = ffhgan.eval_ffhgan_generator_loss(data)
+        if i % 100 == 0:
+            print(i,'- Eval Loss:', loss_dict)
+        mean_losses = update_mean_losses(mean_losses, loss_dict)
+
+    for k, _ in mean_losses.items():
+        mean_losses[k] /= (i + 1)
+
+    return mean_losses
+
+def run_eval_eva(ffhnet, dataloader, curr_epoch, eval_dir):
+    print('Running eval for FFHEvaluator.')
+
+    mean_losses = {
+        'total_loss_eva': 0,
+        'pos_acc': 0,
+        'neg_acc': 0,
+    }
+
+    pred_labels = np.array([])
+    gt_labels = np.array([])
+
+    for i, data in enumerate(dataloader):
+        loss_dict = ffhnet.eval_ffhevaluator_loss(data)
+        pos_acc, neg_acc, pred_label, gt_label = ffhnet.eval_ffhevaluator_accuracy(data)
+
+        mean_losses['total_loss_eva'] += loss_dict['total_loss_eva'].detach().cpu().numpy()
+        mean_losses['pos_acc'] += pos_acc
+        mean_losses['neg_acc'] += neg_acc
+
+        pred_labels = np.append(pred_labels, pred_label)
+        gt_labels = np.append(gt_labels, gt_label)
+
+    for k, _ in mean_losses.items():
+        mean_losses[k] /= (i + 1)
+
+    # save the labels
+    np.save(os.path.join(eval_dir, str(curr_epoch) + '_gt_labels.npy'), gt_labels)
+    np.save(os.path.join(eval_dir, str(curr_epoch) + '_pred_labels.npy'), pred_labels)
+
+    return mean_losses
+
+def run_eval_gan(cfg, curr_epoch, ffhgan=None, epoch=-1, name=""):
+    """Performs model evaluation on the eval set. Evaluates either only one or both the FFHGenerator, FFHEvaluator
+    depending on the config settings.
+
+    Args:
+        eval_dir (str):
+        curr_epoch (int):
+        ffhgan (FFHNet, optional): The full FFHNet model. Defaults to None.
+        epoch (int, optional): Epoch from which to load a model. Defaults to -1.
+        name (str, optional): Name of the model to be loaded. Defaults to "".
+
+    Returns:
+        loss_dict (dict): A dict with the losses for FFHEvaluator and/or FFHGenerator, depending on cfg["train"]_* is set.
+    """
+    print('Running eval.')
+
+    cfg["name"] = name
+
+    loss_dict = {}
+
+    if cfg["eval_ffhevaluator"]:
+        if cfg["model"] == 'ffhnet':
+            dset = FFHEvaluatorDataSet(cfg,eval=True)
+        eval_loader = DataLoader(dset, batch_size=cfg["batch_size"], shuffle=False)
+        eval_loss_dict_eva = run_eval_eva(ffhgan, eval_loader, curr_epoch, cfg["eval_dir"])
+        loss_dict.update(eval_loss_dict_eva)
+
+    if cfg["eval_ffhgenerator"]:
+        eval_loss_dict_gen = run_eval_gan_gen(ffhgan, cfg)
+        loss_dict.update(eval_loss_dict_gen)
+
+    return loss_dict
 
 def main():
     parser = argparse.ArgumentParser(
     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--config', help='Path to template image.',
-                        default='FFHNet/config/config_ffhgan.yaml')
+                        default='DexGanGrasp/config/config_ffhgan.yaml')
     args = parser.parse_args()
 
     # load configuration params

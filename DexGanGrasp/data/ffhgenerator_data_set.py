@@ -6,8 +6,8 @@ import sys
 import torch
 from torch.utils import data
 
-from FFHNet.utils.grasp_data_handler import GraspDataHandlerVae
-from FFHNet.utils import utils, visualization
+from DexGanGrasp.utils.grasp_data_handler import GraspDataHandlerVae
+from DexGanGrasp.utils import utils, visualization
 
 
 class FFHGeneratorDataSet(data.Dataset):
@@ -191,11 +191,11 @@ class FFHGeneratorDataSet(data.Dataset):
 
 
 if __name__ == '__main__':
-    from FFHNet.config.config import Config
+    from DexGanGrasp.config.config import Config
     path = os.path.dirname(os.path.abspath(__file__))
     BASE_PATH = os.path.split(os.path.split(path)[0])[0]
 
-    path = os.path.join(BASE_PATH, "FFHNet/config/config_ffhgan.yaml")
+    path = os.path.join(BASE_PATH, "DexGanGrasp/config/config_ffhgan.yaml")
     config = Config(path)
     cfg = config.parse()
     gds = FFHGeneratorDataSet(cfg)

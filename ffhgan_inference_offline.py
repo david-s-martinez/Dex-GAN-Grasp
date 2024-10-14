@@ -14,18 +14,15 @@ import copy
 import cv2
 import torch
 import argparse
-from FFHNet.config.config import Config
-from FFHNet.data.bps_encoder import BPSEncoder
-from FFHNet.data.ffhevaluator_data_set import (FFHEvaluatorDataSet,
+from DexGanGrasp.config.config import Config
+from DexGanGrasp.data.bps_encoder import BPSEncoder
+from DexGanGrasp.data.ffhevaluator_data_set import (FFHEvaluatorDataSet,
                                                FFHEvaluatorPCDDataSet)
-from FFHNet.data.ffhgenerator_data_set import FFHGeneratorDataSet
-from FFHNet.models.ffhgan import FFHGANet
-
-from FFHNet.models.ffhnet import FFHNet
-
-from FFHNet.models.networks import FFHGAN
-from FFHNet.utils import utils, visualization, writer
-from FFHNet.utils.writer import Writer
+from DexGanGrasp.data.ffhgenerator_data_set import FFHGeneratorDataSet
+from DexGanGrasp.models.ffhgan import FFHGANet
+from DexGanGrasp.models.networks import FFHGAN
+from DexGanGrasp.utils import utils, visualization, writer
+from DexGanGrasp.utils.writer import Writer
 import bps_torch.bps as b_torch
 
 import tf.transformations
@@ -36,7 +33,7 @@ sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..','s
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..','vlpart'))
 
-from FFHNet.utils.filter_grasps_given_mask import filter_grasps_given_mask, sort_grasps, filter_grasps_given_mask_offline
+from DexGanGrasp.utils.filter_grasps_given_mask import filter_grasps_given_mask, sort_grasps, filter_grasps_given_mask_offline
 import zmq
 import numpy as np
 import open3d as o3d
@@ -106,12 +103,12 @@ BASE_PATH = os.path.split(os.path.split(ROOT_PATH)[0])[0]
 parser = argparse.ArgumentParser()
 
 # # Best VAE so far:
-gen_path = "checkpoints/ffhnet/ffhgenerator_bs5012"
-best_epoch = 30
+# gen_path = "checkpoints/ffhnet/ffhgenerator_bs5012"
+# best_epoch = 30
 
 # Best GAN so far:
-# gen_path = "checkpoints/ffhgan/2024-03-10T17_31_55_ffhgan_lr_0.0001_bs_1000"
-# best_epoch = 32
+gen_path = "checkpoints/ffhgan/2024-03-10T17_31_55_ffhgan_lr_0.0001_bs_1000"
+best_epoch = 32
 
 # gen_path = "checkpoints/ffhgan/2024-03-15T15_20_19_ffhgan_lr_0.0001_bs_1000"
 # best_epoch = 63
@@ -122,7 +119,7 @@ parser.add_argument('--load_gen_epoch', type=int, default=best_epoch, help='epoc
 # New evaluator:checkpoints/ffhevaluator/2024-06-23_ffhevaluator
 parser.add_argument('--eva_path', default='checkpoints/ffhevaluator/2024-06-23_ffhevaluator', help='path to FFHEvaluator model')
 parser.add_argument('--load_eva_epoch', type=int, default=30, help='epoch of FFHEvaluator model')
-parser.add_argument('--config', type=str, default='FFHNet/config/config_ffhgan.yaml')
+parser.add_argument('--config', type=str, default='DexGanGrasp/config/config_ffhgan.yaml')
 
 args = parser.parse_args()
 
@@ -134,10 +131,7 @@ config_path = args.config
 config = Config(config_path)
 cfg = config.parse()
 
-if 'ffhgan' in gen_path:
-    model = FFHGANet(cfg)
-else:
-    model = FFHNet(cfg)
+model = FFHGANet(cfg)
 # print(model)
 base_data_bath = os.path.join(ROOT_PATH,'data','real_objects')
 model.load_ffhgenerator(epoch=load_epoch_gen, load_path=load_path_gen)
