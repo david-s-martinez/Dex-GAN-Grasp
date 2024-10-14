@@ -13,3 +13,5 @@ data/vlpart
 *__pycache__
 base2flange_inferred.npy
 obj.pcd
+data/data_p2_full/
+data/hithand_data/
