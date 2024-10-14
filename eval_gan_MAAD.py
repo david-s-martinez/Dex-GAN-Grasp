@@ -11,11 +11,11 @@ from torch.utils.data import DataLoader
 import math
 import numpy as np
 from DexGanGrasp.config.config import Config
-from DexGanGrasp.data.ffhevaluator_data_set import DexEvaluatorDataSet, DexEvaluatorPCDDataSet
-from DexGanGrasp.data.ffhgenerator_data_set import DexGeneratorDataSet
+from DexGanGrasp.data.dexevaluator_data_set import DexEvaluatorDataSet, DexEvaluatorPCDDataSet
+from DexGanGrasp.data.dexgenerator_data_set import DexGeneratorDataSet
 from DexGanGrasp.utils.writer import Writer
 from DexGanGrasp.utils import utils, visualization, writer
-from DexGanGrasp.models.ffhgan import DexGanGrasp
+from DexGanGrasp.models.dexgangrasp import DexGanGrasp
 from DexGanGrasp.utils.grasp_data_handler import GraspDataHandler
 import csv
 ROOT_PATH = os.path.dirname(os.path.abspath(__file__))
@@ -370,7 +370,7 @@ if __name__ == '__main__':
         # parser.add_argument('--eva_path', default='models/ffhevaluator', help='path to DexEvaluator model')
         parser.add_argument('--eva_path', default='checkpoints/ffhevaluator/2024-06-23_ffhevaluator', help='path to DexEvaluator model')
         parser.add_argument('--load_eva_epoch', type=int, default=30, help='epoch of DexEvaluator model')
-        parser.add_argument('--config', type=str, default='DexGanGrasp/config/config_ffhgan.yaml')
+        parser.add_argument('--config', type=str, default='DexGanGrasp/config/config_dexgangrasp.yaml')
 
         args = parser.parse_args()
 

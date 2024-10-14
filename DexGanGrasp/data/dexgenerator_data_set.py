@@ -195,7 +195,7 @@ if __name__ == '__main__':
     path = os.path.dirname(os.path.abspath(__file__))
     BASE_PATH = os.path.split(os.path.split(path)[0])[0]
 
-    path = os.path.join(BASE_PATH, "DexGanGrasp/config/config_ffhgan.yaml")
+    path = os.path.join(BASE_PATH, "DexGanGrasp/config/config_dexgangrasp.yaml")
     config = Config(path)
     cfg = config.parse()
     gds = DexGeneratorDataSet(cfg)

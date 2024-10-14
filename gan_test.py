@@ -9,10 +9,10 @@ import argparse
 
 from DexGanGrasp.config.config import Config
 from DexGanGrasp.data.bps_encoder import BPSEncoder
-from DexGanGrasp.data.ffhevaluator_data_set import (DexEvaluatorDataSet,
+from DexGanGrasp.data.dexevaluator_data_set import (DexEvaluatorDataSet,
                                                DexEvaluatorPCDDataSet)
-from DexGanGrasp.data.ffhgenerator_data_set import DexGeneratorDataSet
-from DexGanGrasp.models.ffhgan import DexGanGrasp
+from DexGanGrasp.data.dexgenerator_data_set import DexGeneratorDataSet
+from DexGanGrasp.models.dexgangrasp import DexGanGrasp
 from DexGanGrasp.models.networks import DexGANGrasp
 from DexGanGrasp.utils import utils, visualization
 from DexGanGrasp.utils.writer import Writer
@@ -130,7 +130,7 @@ def train():
     parser = argparse.ArgumentParser(
     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--config', help='Path to template image.',
-                        default='DexGanGrasp/config/config_ffhgan.yaml')
+                        default='DexGanGrasp/config/config_dexgangrasp.yaml')
     args = parser.parse_args()
 
     # load configuration params
@@ -230,7 +230,7 @@ if __name__ == '__main__':
         # New evaluator:checkpoints/ffhevaluator/2024-06-23_ffhevaluator
         parser.add_argument('--eva_path', default='checkpoints/ffhevaluator/2024-06-23_ffhevaluator', help='path to DexEvaluator model')
         parser.add_argument('--load_eva_epoch', type=int, default=30, help='epoch of DexEvaluator model')
-        parser.add_argument('--config', type=str, default='DexGanGrasp/config/config_ffhgan.yaml')
+        parser.add_argument('--config', type=str, default='DexGanGrasp/config/config_dexgangrasp.yaml')
 
         args = parser.parse_args()
 

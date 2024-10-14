@@ -7,10 +7,10 @@ from torch.utils.data import DataLoader
 import numpy as np
 import os
 from DexGanGrasp.config.config import Config
-from DexGanGrasp.data.ffhevaluator_data_set import DexEvaluatorDataSet, DexEvaluatorPCDDataSet
-from DexGanGrasp.data.ffhgenerator_data_set import DexGeneratorDataSet
+from DexGanGrasp.data.dexevaluator_data_set import DexEvaluatorDataSet, DexEvaluatorPCDDataSet
+from DexGanGrasp.data.dexgenerator_data_set import DexGeneratorDataSet
 from DexGanGrasp.utils.writer import Writer
-from DexGanGrasp.models.ffhgan import DexGanGrasp
+from DexGanGrasp.models.dexgangrasp import DexGanGrasp
 
 def update_mean_losses(mean_losses, new_losses):
     for key in mean_losses.keys():
@@ -110,7 +110,7 @@ def main():
     parser = argparse.ArgumentParser(
     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--config', help='Path to template image.',
-                        default='DexGanGrasp/config/config_ffhgan.yaml')
+                        default='DexGanGrasp/config/config_dexgangrasp.yaml')
     args = parser.parse_args()
 
     # load configuration params
