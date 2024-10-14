@@ -16,9 +16,9 @@ C = 'collision'
 NC = 'no_collision'
 
 
-class GraspDataHandlerVae:
+class GraspDataHandler:
     def __init__(self, file_path):
-        print("GraspDataHandlerVae",file_path)
+        print("GraspDataHandler",file_path)
         assert os.path.exists(file_path)
         self.file_path = file_path
 
@@ -122,6 +122,6 @@ if __name__ == '__main__':
 
     file_path = args.file_path
 
-    gdhvae = GraspDataHandlerVae(file_path=file_path)
+    gdhvae = GraspDataHandler(file_path=file_path)
     gdhvae.get_single_grasp_of_outcome(obj_name='kit_GreenSaltCylinder', outcome='collision')
 

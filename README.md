@@ -73,7 +73,7 @@ If you train a model with direct point cloud:
 
 ## To run the train script
 
-### Train FFHEvaluator
+### Train DexEvaluator
 
 
 Modify the `config.yaml` with correct path.
@@ -81,7 +81,7 @@ Modify the `config.yaml` with correct path.
 python train.py --config models/ffhgenerator/config.yaml
 ```
 
-### Train FFHGenerator
+### Train DexGenerator
 
 Modify the `config.yaml` with correct path.
 ```
@@ -90,12 +90,12 @@ python train.py --config models/ffhgenerator/config.yaml
 
 ## To run the evaluation script
 
-### Evaluate the FFHEvaluator
+### Evaluate the DexEvaluator
 ```
 python eval.py
 ```
 
-| Data distribution from FFHGenerator  | Filter grasps with 0.5 thresh | Filter grasps with 0.75 thresh
+| Data distribution from DexGenerator  | Filter grasps with 0.5 thresh | Filter grasps with 0.75 thresh
 | --------------------------------------- | --------------------------------------- |--------------------------------------- |
 | ![](docs/images/ffhgen.png)       | ![](docs/images/filter.png) | ![](docs/images/filter2.png) |
 

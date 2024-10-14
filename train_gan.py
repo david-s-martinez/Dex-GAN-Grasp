@@ -7,10 +7,10 @@ from torch.utils.data import DataLoader
 import numpy as np
 import os
 from DexGanGrasp.config.config import Config
-from DexGanGrasp.data.ffhevaluator_data_set import FFHEvaluatorDataSet, FFHEvaluatorPCDDataSet
-from DexGanGrasp.data.ffhgenerator_data_set import FFHGeneratorDataSet
+from DexGanGrasp.data.ffhevaluator_data_set import DexEvaluatorDataSet, DexEvaluatorPCDDataSet
+from DexGanGrasp.data.ffhgenerator_data_set import DexGeneratorDataSet
 from DexGanGrasp.utils.writer import Writer
-from DexGanGrasp.models.ffhgan import FFHGANet
+from DexGanGrasp.models.ffhgan import DexGanGrasp
 
 def update_mean_losses(mean_losses, new_losses):
     for key in mean_losses.keys():
@@ -18,8 +18,8 @@ def update_mean_losses(mean_losses, new_losses):
     return mean_losses
 
 def run_eval_gan_gen(ffhgan, cfg):
-    print('Running eval for FFHGAN Generator')
-    dset = FFHGeneratorDataSet(cfg, eval = True)
+    print('Running eval for DexGANGrasp Generator')
+    dset = DexGeneratorDataSet(cfg, eval = True)
     eval_loader = DataLoader(dset, batch_size=cfg["batch_size"], shuffle=False)
 
     mean_losses = {
@@ -42,7 +42,7 @@ def run_eval_gan_gen(ffhgan, cfg):
     return mean_losses
 
 def run_eval_eva(ffhnet, dataloader, curr_epoch, eval_dir):
-    print('Running eval for FFHEvaluator.')
+    print('Running eval for DexEvaluator.')
 
     mean_losses = {
         'total_loss_eva': 0,
@@ -74,7 +74,7 @@ def run_eval_eva(ffhnet, dataloader, curr_epoch, eval_dir):
     return mean_losses
 
 def run_eval_gan(cfg, curr_epoch, ffhgan=None, epoch=-1, name=""):
-    """Performs model evaluation on the eval set. Evaluates either only one or both the FFHGenerator, FFHEvaluator
+    """Performs model evaluation on the eval set. Evaluates either only one or both the DexGenerator, DexEvaluator
     depending on the config settings.
 
     Args:
@@ -85,7 +85,7 @@ def run_eval_gan(cfg, curr_epoch, ffhgan=None, epoch=-1, name=""):
         name (str, optional): Name of the model to be loaded. Defaults to "".
 
     Returns:
-        loss_dict (dict): A dict with the losses for FFHEvaluator and/or FFHGenerator, depending on cfg["train"]_* is set.
+        loss_dict (dict): A dict with the losses for DexEvaluator and/or DexGenerator, depending on cfg["train"]_* is set.
     """
     print('Running eval.')
 
@@ -95,7 +95,7 @@ def run_eval_gan(cfg, curr_epoch, ffhgan=None, epoch=-1, name=""):
 
     if cfg["eval_ffhevaluator"]:
         if cfg["model"] == 'ffhnet':
-            dset = FFHEvaluatorDataSet(cfg,eval=True)
+            dset = DexEvaluatorDataSet(cfg,eval=True)
         eval_loader = DataLoader(dset, batch_size=cfg["batch_size"], shuffle=False)
         eval_loss_dict_eva = run_eval_eva(ffhgan, eval_loader, curr_epoch, cfg["eval_dir"])
         loss_dict.update(eval_loss_dict_eva)
@@ -124,9 +124,9 @@ def main():
     # Data for gen and eval and col is different. Gen sees only positive examples
     if cfg["train_ffhevaluator"]:
         if cfg["model"] == "ffhnet":
-            dset_eva = FFHEvaluatorDataSet(cfg,eval=False)
+            dset_eva = DexEvaluatorDataSet(cfg,eval=False)
         elif cfg["model"] == "pointnet":
-            dset_eva = FFHEvaluatorPCDDataSet(cfg,eval=False)
+            dset_eva = DexEvaluatorPCDDataSet(cfg,eval=False)
         train_loader_eva = DataLoader(dset_eva,
                                       batch_size=cfg["batch_size"],
                                       shuffle=True,
@@ -134,7 +134,7 @@ def main():
                                       num_workers=cfg["num_threads"])
 
     if cfg["train_ffhgenerator"]:
-        dset_gen = FFHGeneratorDataSet(cfg)
+        dset_gen = DexGeneratorDataSet(cfg)
         train_loader_gen = DataLoader(dset_gen,
                                       batch_size=cfg["batch_size"],
                                       shuffle=True,
@@ -143,7 +143,7 @@ def main():
 
     writer = Writer(cfg)
 
-    ffhgan = FFHGANet(cfg)
+    ffhgan = DexGanGrasp(cfg)
     if cfg["continue_train"]:
         if cfg["train_ffhevaluator"]:
             ffhgan.load_ffhevaluator(cfg["load_epoch"])

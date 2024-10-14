@@ -9,12 +9,12 @@ import sys
 from time import time
 
 sys.path.insert(0,os.path.join(os.path.dirname(os.path.abspath(__file__)),'..','..'))
-from DexGanGrasp.utils.grasp_data_handler import GraspDataHandlerVae
+from DexGanGrasp.utils.grasp_data_handler import GraspDataHandler
 from DexGanGrasp.utils import utils, visualization
 
-class FFHEvaluatorDataSet(data.Dataset):
+class DexEvaluatorDataSet(data.Dataset):
     def __init__(self, cfg, eval=False,dtype=torch.float32):
-        super(FFHEvaluatorDataSet, self).__init__()
+        super(DexEvaluatorDataSet, self).__init__()
         self.dtype = dtype
         self.is_group_joints = cfg["is_group_joints"]
         self.pos_ratio = 0.3
@@ -29,7 +29,7 @@ class FFHEvaluatorDataSet(data.Dataset):
         self.objs_folder = os.path.join(self.ds_path, 'bps')
         grasp_data_path = os.path.join(cfg["data_dir"], cfg["grasp_data_file_name"])
         # self.gazebo_obj_path = cfg["gazebo_obj_path"]
-        self.grasp_data_handler = GraspDataHandlerVae(grasp_data_path)
+        self.grasp_data_handler = GraspDataHandler(grasp_data_path)
 
         # Info about dataset from csv
         df = pd.read_csv(os.path.join(cfg["data_dir"], 'metadata.csv'))
@@ -174,9 +174,9 @@ class FFHEvaluatorDataSet(data.Dataset):
     def __len__(self):
         return len(self.bps_paths)
 
-class FFHEvaluatorPCDDataSet(FFHEvaluatorDataSet):
+class DexEvaluatorPCDDataSet(DexEvaluatorDataSet):
     def __init__(self, cfg, eval=False, dtype=torch.float32):
-        super(FFHEvaluatorPCDDataSet, self).__init__(cfg, eval=eval)
+        super(DexEvaluatorPCDDataSet, self).__init__(cfg, eval=eval)
         # Build paths list and corr. labels
         self.objs_folder = os.path.join(self.ds_path, 'pcd')
         self.pcd_paths, self.labels = self.get_all_pcd_paths_and_labels(
@@ -318,8 +318,8 @@ if __name__ == '__main__':
     path = os.path.join(BASE_PATH, "DexGanGrasp/config/config_ffhnet_vm_test.yaml")
     config = Config(path)
     cfg = config.parse()
-    gds = FFHEvaluatorDataSet(cfg,eval=False)
-    # gds = FFHEvaluatorPCDDataSet(cfg)
+    gds = DexEvaluatorDataSet(cfg,eval=False)
+    # gds = DexEvaluatorPCDDataSet(cfg)
     i = 0
     time_start = time()
     while True:

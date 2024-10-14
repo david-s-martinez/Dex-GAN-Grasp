@@ -158,7 +158,7 @@ class Discriminator(nn.Module):
 
         return p_real
     
-class FFHGAN(nn.Module):
+class DexGANGrasp(nn.Module):
     def __init__(self,
                  cfg,
                  n_neurons=512,
@@ -167,7 +167,7 @@ class FFHGAN(nn.Module):
                  dtype=torch.float32,
                  **kwargs):
 
-        super(FFHGAN, self).__init__()
+        super(DexGANGrasp, self).__init__()
 
         self.cfg = cfg
         in_pose += cfg["n_hand_joints"]
@@ -192,10 +192,10 @@ class FFHGAN(nn.Module):
         self.discriminator.device = self.device
         self.generator.device = self.device
         if self.cfg["is_train"]:
-            print("FFHGAN currently in TRAIN mode!")
+            print("DexGANGrasp currently in TRAIN mode!")
             self.train()
         else:
-            print("FFHGAN currently in EVAL mode!")
+            print("DexGANGrasp currently in EVAL mode!")
             self.eval()
 
         self.dtype = dtype
@@ -275,7 +275,7 @@ class FFHGAN(nn.Module):
 
         return self.generate_poses(bps_tensor, return_arr=return_arr,z_offset=z_offset)
 
-class FFHGenerator(nn.Module):
+class DexEvaluator(nn.Module):
     def __init__(self,
                  cfg,
                  n_neurons=512,
@@ -283,141 +283,7 @@ class FFHGenerator(nn.Module):
                  in_pose=9 + 3,
                  dtype=torch.float32,
                  **kwargs):
-
-        super(FFHGenerator, self).__init__()
-
-        self.cfg = cfg
-        in_pose += cfg["n_hand_joints"]
-        self.latentD = cfg["latentD"]
-
-        self.enc_bn1 = nn.BatchNorm1d(in_bps + in_pose)
-        self.enc_rb1 = ResBlock(in_bps + in_pose, n_neurons)
-        # why input in_bps again here?
-        self.enc_rb2 = ResBlock(n_neurons + in_bps + in_pose, n_neurons)
-
-        self.enc_mu = nn.Linear(n_neurons, self.latentD)
-        self.enc_logvar = nn.Linear(n_neurons, self.latentD)
-        self.do = nn.Dropout(p=.1, inplace=False)
-
-        self.dec_bn1 = nn.BatchNorm1d(in_bps)
-        self.dec_rb1 = ResBlock(self.latentD + in_bps, n_neurons)
-        self.dec_rb2 = ResBlock(n_neurons + self.latentD + in_bps, n_neurons)
-
-        self.dec_joint_conf = nn.Linear(n_neurons, cfg["n_hand_joints"])
-        self.dec_rot = nn.Linear(n_neurons, 6)
-        self.dec_transl = nn.Linear(n_neurons, 3)
-
-        if self.cfg["is_train"]:
-            print("FFHGenerator currently in TRAIN mode!")
-            self.train()
-        else:
-            print("FFHGenerator currently in EVAL mode!")
-            self.eval()
-
-        self.dtype = dtype
-        self.device = torch.device('cuda:{}'.format(
-            cfg["gpu_ids"][0])) if torch.cuda.is_available() else torch.device('cpu')
-
-    def decode(self, Zin, bps_object):
-
-        bs = Zin.shape[0]
-        o_bps = self.dec_bn1(bps_object)
-
-        X0 = torch.cat([Zin, o_bps], dim=1)
-        X = self.dec_rb1(X0, True)
-        X = self.dec_rb2(torch.cat([X0, X], dim=1), True)
-
-        joint_conf = self.dec_joint_conf(X)
-        rot_6D = self.dec_rot(X)
-        transl = self.dec_transl(X)
-
-        results = {"rot_6D": rot_6D, "transl": transl, "joint_conf": joint_conf, "z": Zin}
-
-        return results
-
-    def encode(self, data):
-        self.set_input(data)
-        X = torch.cat([self.bps_object, self.rot_matrix, self.transl, self.joint_conf], dim=1)
-
-        X0 = self.enc_bn1(X)
-        X = self.enc_rb1(X0, True)
-        X = self.enc_rb2(torch.cat([X0, X], dim=1), True)
-
-        return self.enc_mu(X), self.enc_logvar(X)
-
-    def forward(self, data):
-        # Encode data, get mean and logvar
-        mu, logvar = self.encode(data)
-
-        std = logvar.exp().pow(0.5)
-        q_z = torch.distributions.normal.Normal(mu, std)
-        z = q_z.rsample()
-
-        data_recon = self.decode(z, self.bps_object)
-        results = {'mu': mu, 'logvar': logvar}
-        results.update(data_recon)
-
-        return results
-
-    def generate_poses(self, bps_object, return_arr=False, seed=None, sample_uniform=False, z_offset=0.0):
-        """[summary]
-
-        Args:
-            bps_object (tensor): BPS encoding of object point cloud.
-            return_arr (bool): Returns np array if True
-            seed (int, optional): np random seed. Defaults to None.
-
-        Returns:
-            results (dict): keys being 1.rot_matrix, 2.transl, 3.joint_conf
-        """
-        start = time.time()
-        n_samples = bps_object.shape[0]
-        self.eval()
-        with torch.no_grad():
-            if not sample_uniform:
-                Zgen = torch.randn((n_samples, self.latentD), dtype=self.dtype, device=self.device)
-            else:
-                Zgen = 8 * torch.rand(
-                    (n_samples, self.latentD), dtype=self.dtype, device=self.device) - 4
-
-        results = self.decode(Zgen, bps_object)
-
-        # Transforms rot_6D to rot_matrix
-        results['rot_matrix'] = utils.rot_matrix_from_ortho6d(results.pop('rot_6D'))
-
-        if return_arr:
-            for k, v in results.items():
-                results[k] = v.cpu().detach().numpy()
-        print("Sampling took: %.3f" % (time.time() - start))
-        results = utils.translate_along_axis(results, 0, z_offset)
-        return results
-
-    def set_input(self, data):
-        """ Bring input tensors to correct dtype and device. Set whether gradient is required depending on
-        we are in train or eval mode.
-        """
-        rot_matrix = data["rot_matrix"].to(dtype=self.dtype, device=self.device)
-        transl = data["transl"].to(dtype=self.dtype, device=self.device)
-        joint_conf = data["joint_conf"].to(dtype=self.dtype, device=self.device)
-        bps_object = data["bps_object"].to(dtype=self.dtype, device=self.device).contiguous()
-
-        self.rot_matrix = rot_matrix.requires_grad_(self.cfg["is_train"])
-        self.transl = transl.requires_grad_(self.cfg["is_train"])
-        self.joint_conf = joint_conf.requires_grad_(self.cfg["is_train"])
-        self.bps_object = bps_object.requires_grad_(self.cfg["is_train"])
-
-        self.rot_matrix = self.rot_matrix.view(self.bps_object.shape[0], -1)
-
-
-class FFHEvaluator(nn.Module):
-    def __init__(self,
-                 cfg,
-                 n_neurons=512,
-                 in_bps=4096,
-                 in_pose=9 + 3,
-                 dtype=torch.float32,
-                 **kwargs):
-        super(FFHEvaluator, self).__init__()
+        super(DexEvaluator, self).__init__()
         self.cfg = cfg
 
         self.bn1 = nn.BatchNorm1d(in_bps + in_pose)
@@ -429,10 +295,10 @@ class FFHEvaluator(nn.Module):
         self.sigmoid = nn.Sigmoid()
 
         if self.cfg["is_train"]:
-            print("FFHEvaluator currently in TRAIN mode!")
+            print("DexEvaluator currently in TRAIN mode!")
             self.train()
         else:
-            print("FFHEvaluator currently in EVAL mode!")
+            print("DexEvaluator currently in EVAL mode!")
             self.eval()
         self.dtype = torch.float32
         self.device = torch.device('cuda:{}'.format(

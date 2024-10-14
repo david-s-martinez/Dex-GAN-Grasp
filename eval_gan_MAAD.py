@@ -11,12 +11,12 @@ from torch.utils.data import DataLoader
 import math
 import numpy as np
 from DexGanGrasp.config.config import Config
-from DexGanGrasp.data.ffhevaluator_data_set import FFHEvaluatorDataSet, FFHEvaluatorPCDDataSet
-from DexGanGrasp.data.ffhgenerator_data_set import FFHGeneratorDataSet
+from DexGanGrasp.data.ffhevaluator_data_set import DexEvaluatorDataSet, DexEvaluatorPCDDataSet
+from DexGanGrasp.data.ffhgenerator_data_set import DexGeneratorDataSet
 from DexGanGrasp.utils.writer import Writer
 from DexGanGrasp.utils import utils, visualization, writer
-from DexGanGrasp.models.ffhgan import FFHGANet
-from DexGanGrasp.utils.grasp_data_handler import GraspDataHandlerVae
+from DexGanGrasp.models.ffhgan import DexGanGrasp
+from DexGanGrasp.utils.grasp_data_handler import GraspDataHandler
 import csv
 ROOT_PATH = os.path.dirname(os.path.abspath(__file__))
 
@@ -232,7 +232,7 @@ def main(
     config = Config(config_path)
     cfg = config.parse()
 
-    model = FFHGANet(cfg)
+    model = DexGanGrasp(cfg)
 
     if is_discriminator and is_gan:
 
@@ -246,7 +246,7 @@ def main(
     model.load_ffhgenerator(epoch=load_epoch_gen, load_path=load_path_gen)
     
     model.load_ffhevaluator(epoch=load_epoch_eva, load_path=load_path_eva)
-    dset_gen = FFHGeneratorDataSet(cfg, eval=True)
+    dset_gen = DexGeneratorDataSet(cfg, eval=True)
     train_loader_gen = DataLoader(dset_gen,
                                     batch_size=64,
                                     shuffle=True,
@@ -364,12 +364,12 @@ if __name__ == '__main__':
         is_discriminator = True
         is_filter = False
 
-        parser.add_argument('--gen_path', default=gen_path, help='path to FFHGenerator model')
-        parser.add_argument('--load_gen_epoch', type=int, default=best_epoch, help='epoch of FFHGenerator model')
+        parser.add_argument('--gen_path', default=gen_path, help='path to DexGenerator model')
+        parser.add_argument('--load_gen_epoch', type=int, default=best_epoch, help='epoch of DexGenerator model')
 
-        # parser.add_argument('--eva_path', default='models/ffhevaluator', help='path to FFHEvaluator model')
-        parser.add_argument('--eva_path', default='checkpoints/ffhevaluator/2024-06-23_ffhevaluator', help='path to FFHEvaluator model')
-        parser.add_argument('--load_eva_epoch', type=int, default=30, help='epoch of FFHEvaluator model')
+        # parser.add_argument('--eva_path', default='models/ffhevaluator', help='path to DexEvaluator model')
+        parser.add_argument('--eva_path', default='checkpoints/ffhevaluator/2024-06-23_ffhevaluator', help='path to DexEvaluator model')
+        parser.add_argument('--load_eva_epoch', type=int, default=30, help='epoch of DexEvaluator model')
         parser.add_argument('--config', type=str, default='DexGanGrasp/config/config_ffhgan.yaml')
 
         args = parser.parse_args()

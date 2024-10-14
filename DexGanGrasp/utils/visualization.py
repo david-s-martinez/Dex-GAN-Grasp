@@ -9,7 +9,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import numpy as np
-from DexGanGrasp.utils.grasp_data_handler import GraspDataHandlerVae
+from DexGanGrasp.utils.grasp_data_handler import GraspDataHandler
 
 try:
     from urdfpy import URDF
@@ -408,7 +408,7 @@ def show_individual_ground_truth_grasps(obj_name, grasp_data_path, outcome='posi
     mesh_path = get_mesh_path(obj_name)
 
     # Get the ground truth grasps
-    data_handler = GraspDataHandlerVae(file_path=grasp_data_path)
+    data_handler = GraspDataHandler(file_path=grasp_data_path)
     palm_poses, joint_confs, num_succ = data_handler.get_grasps_for_object(obj_name,
                                                                            outcome=outcome)
 
@@ -432,7 +432,7 @@ def show_ground_truth_grasp_distribution(obj_name, grasp_data_path, gazebo_obj_p
     mesh = get_mesh_for_object(obj_name, gazebo_obj_path)
 
     # Get all the grasps
-    data_handler = GraspDataHandlerVae(file_path=grasp_data_path)
+    data_handler = GraspDataHandler(file_path=grasp_data_path)
 
     palm_poses, _, num_succ = data_handler.get_grasps_for_object(
         obj_name, outcome='positive')
@@ -816,7 +816,7 @@ def plot_2D_gaussian():
 
 
 def plot_filtered_grasps_per_threshold(path_to_csv):
-    """Plots a graph where the x-axis is the threshold of the FFHEvaluator evaluation, below which grasps are rejected
+    """Plots a graph where the x-axis is the threshold of the DexEvaluator evaluation, below which grasps are rejected
     and y-axis is the percentage of reamining grasps
 
     Args:

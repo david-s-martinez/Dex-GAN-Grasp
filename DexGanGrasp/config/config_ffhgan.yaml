@@ -10,7 +10,7 @@ gazebo_obj_path: /home/dm/panda_ws/gazebo-objects/objects_gazebo
 # train/eval mode
 model: ffhnet # either ffhnet or pointnet
 model_name:  # cooresponding to the class name of the model. Have to also change the import class name in the script.
-name: ffhgan_lr_0.0001_bs_1000 # name saved as checkpoint
+name: ffhgan_lr_0.0001_bs_32 # name saved as checkpoint
 continue_train: false # true for loading model from load_path, otherwise start from 1 epoch.
 load_epoch: 1
 is_train: true

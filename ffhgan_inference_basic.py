@@ -16,11 +16,11 @@ import torch
 import argparse
 from DexGanGrasp.config.config import Config
 from DexGanGrasp.data.bps_encoder import BPSEncoder
-from DexGanGrasp.data.ffhevaluator_data_set import (FFHEvaluatorDataSet,
-                                               FFHEvaluatorPCDDataSet)
-from DexGanGrasp.data.ffhgenerator_data_set import FFHGeneratorDataSet
-from DexGanGrasp.models.ffhgan import FFHGANet
-from DexGanGrasp.models.networks import FFHGAN
+from DexGanGrasp.data.ffhevaluator_data_set import (DexEvaluatorDataSet,
+                                               DexEvaluatorPCDDataSet)
+from DexGanGrasp.data.ffhgenerator_data_set import DexGeneratorDataSet
+from DexGanGrasp.models.ffhgan import DexGanGrasp
+from DexGanGrasp.models.networks import DexGANGrasp
 from DexGanGrasp.utils import utils, visualization, writer
 from DexGanGrasp.utils.writer import Writer
 import bps_torch.bps as b_torch
@@ -105,11 +105,11 @@ parser = argparse.ArgumentParser()
 # Best GAN so far:
 gen_path = "checkpoints/ffhgan/2024-03-10T17_31_55_ffhgan_lr_0.0001_bs_1000"
 best_epoch = 32
-parser.add_argument('--gen_path', default=gen_path, help='path to FFHGenerator model')
-parser.add_argument('--load_gen_epoch', type=int, default=best_epoch, help='epoch of FFHGenerator model')
+parser.add_argument('--gen_path', default=gen_path, help='path to DexGenerator model')
+parser.add_argument('--load_gen_epoch', type=int, default=best_epoch, help='epoch of DexGenerator model')
 # New evaluator:checkpoints/ffhevaluator/2024-06-23_ffhevaluator
-parser.add_argument('--eva_path', default='checkpoints/ffhevaluator/2024-06-23_ffhevaluator', help='path to FFHEvaluator model')
-parser.add_argument('--load_eva_epoch', type=int, default=30, help='epoch of FFHEvaluator model')
+parser.add_argument('--eva_path', default='checkpoints/ffhevaluator/2024-06-23_ffhevaluator', help='path to DexEvaluator model')
+parser.add_argument('--load_eva_epoch', type=int, default=30, help='epoch of DexEvaluator model')
 parser.add_argument('--config', type=str, default='DexGanGrasp/config/config_ffhgan.yaml')
 
 args = parser.parse_args()
@@ -121,7 +121,7 @@ load_epoch_eva = args.load_eva_epoch
 config_path = args.config
 config = Config(config_path)
 cfg = config.parse()
-ffhgan = FFHGANet(cfg)
+ffhgan = DexGanGrasp(cfg)
 print(ffhgan)
 base_data_bath = os.path.join(ROOT_PATH,'data','real_objects')
 ffhgan.load_ffhgenerator(epoch=load_epoch_gen, load_path=load_path_gen)

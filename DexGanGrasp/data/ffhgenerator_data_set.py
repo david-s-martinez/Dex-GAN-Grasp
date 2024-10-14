@@ -6,13 +6,13 @@ import sys
 import torch
 from torch.utils import data
 
-from DexGanGrasp.utils.grasp_data_handler import GraspDataHandlerVae
+from DexGanGrasp.utils.grasp_data_handler import GraspDataHandler
 from DexGanGrasp.utils import utils, visualization
 
 
-class FFHGeneratorDataSet(data.Dataset):
+class DexGeneratorDataSet(data.Dataset):
     def __init__(self, cfg, eval=False, dtype=torch.float32):
-        super(FFHGeneratorDataSet, self).__init__()
+        super(DexGeneratorDataSet, self).__init__()
         if eval:
             cfg["ds_name"] = "eval"
         else:
@@ -26,7 +26,7 @@ class FFHGeneratorDataSet(data.Dataset):
         self.grasp_data_path = os.path.join(cfg["data_dir"], cfg["grasp_data_file_name"])
         self.gazebo_obj_path = cfg["gazebo_obj_path"]
 
-        self.grasp_data_handler = GraspDataHandlerVae(self.grasp_data_path)
+        self.grasp_data_handler = GraspDataHandler(self.grasp_data_path)
         df = pd.read_csv(os.path.join(cfg["data_dir"], 'metadata.csv'))
         df_name_pos = df[df[cfg["ds_name"]] == 'X'].loc[:, ['Unnamed: 0', 'positive']]
         self.num_success_per_object = dict(
@@ -198,7 +198,7 @@ if __name__ == '__main__':
     path = os.path.join(BASE_PATH, "DexGanGrasp/config/config_ffhgan.yaml")
     config = Config(path)
     cfg = config.parse()
-    gds = FFHGeneratorDataSet(cfg)
+    gds = DexGeneratorDataSet(cfg)
 
     while True:
         i = np.random.randint(0, gds.__len__())

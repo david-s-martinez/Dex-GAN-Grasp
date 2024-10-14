@@ -9,11 +9,11 @@ import argparse
 
 from DexGanGrasp.config.config import Config
 from DexGanGrasp.data.bps_encoder import BPSEncoder
-from DexGanGrasp.data.ffhevaluator_data_set import (FFHEvaluatorDataSet,
-                                               FFHEvaluatorPCDDataSet)
-from DexGanGrasp.data.ffhgenerator_data_set import FFHGeneratorDataSet
-from DexGanGrasp.models.ffhgan import FFHGANet
-from DexGanGrasp.models.networks import FFHGAN
+from DexGanGrasp.data.ffhevaluator_data_set import (DexEvaluatorDataSet,
+                                               DexEvaluatorPCDDataSet)
+from DexGanGrasp.data.ffhgenerator_data_set import DexGeneratorDataSet
+from DexGanGrasp.models.ffhgan import DexGanGrasp
+from DexGanGrasp.models.networks import DexGANGrasp
 from DexGanGrasp.utils import utils, visualization
 from DexGanGrasp.utils.writer import Writer
 ROOT_PATH = os.path.dirname(os.path.abspath(__file__))
@@ -74,7 +74,7 @@ def eval_ffhnet_sampling_and_filtering_real(config_path,
                                             is_discriminator = False):
     config = Config(config_path)
     cfg = config.parse()
-    ffhgan = FFHGANet(cfg)
+    ffhgan = DexGanGrasp(cfg)
     print(ffhgan)
     base_data_bath = os.path.join(ROOT_PATH,'data','real_objects')
     ffhgan.load_ffhgenerator(epoch=load_epoch_gen, load_path=load_path_gen)
@@ -144,9 +144,9 @@ def train():
     # Data for gen and eval and col is different. Gen sees only positive examples
     if cfg["train_ffhevaluator"]:
         if cfg["model"] == "ffhnet":
-            dset_eva = FFHEvaluatorDataSet(cfg,eval=False)
+            dset_eva = DexEvaluatorDataSet(cfg,eval=False)
         elif cfg["model"] == "pointnet":
-            dset_eva = FFHEvaluatorPCDDataSet(cfg,eval=False)
+            dset_eva = DexEvaluatorPCDDataSet(cfg,eval=False)
         train_loader_eva = DataLoader(dset_eva,
                                       batch_size=cfg["batch_size"],
                                       shuffle=True,
@@ -154,7 +154,7 @@ def train():
                                       num_workers=cfg["num_threads"])
 
     if cfg["train_ffhgenerator"]:
-        dset_gen = FFHGeneratorDataSet(cfg)
+        dset_gen = DexGeneratorDataSet(cfg)
         train_loader_gen = DataLoader(dset_gen,
                                       batch_size=cfg["batch_size"],
                                       shuffle=True,
@@ -163,7 +163,7 @@ def train():
 
     writer = Writer(cfg)
 
-    ffhgan = FFHGANet(cfg)
+    ffhgan = DexGanGrasp(cfg)
     # if cfg["continue_train"]:
     #     if cfg["train_ffhevaluator"]:
     #         ffhgan.load_ffhevaluator(cfg["load_epoch"])
@@ -225,11 +225,11 @@ if __name__ == '__main__':
         is_discriminator = False
         thresh_succ_list = [0.5, 0.75, 0.90]
 
-        parser.add_argument('--gen_path', default=gen_path, help='path to FFHGenerator model')
-        parser.add_argument('--load_gen_epoch', type=int, default=best_epoch, help='epoch of FFHGenerator model')
+        parser.add_argument('--gen_path', default=gen_path, help='path to DexGenerator model')
+        parser.add_argument('--load_gen_epoch', type=int, default=best_epoch, help='epoch of DexGenerator model')
         # New evaluator:checkpoints/ffhevaluator/2024-06-23_ffhevaluator
-        parser.add_argument('--eva_path', default='checkpoints/ffhevaluator/2024-06-23_ffhevaluator', help='path to FFHEvaluator model')
-        parser.add_argument('--load_eva_epoch', type=int, default=30, help='epoch of FFHEvaluator model')
+        parser.add_argument('--eva_path', default='checkpoints/ffhevaluator/2024-06-23_ffhevaluator', help='path to DexEvaluator model')
+        parser.add_argument('--load_eva_epoch', type=int, default=30, help='epoch of DexEvaluator model')
         parser.add_argument('--config', type=str, default='DexGanGrasp/config/config_ffhgan.yaml')
 
         args = parser.parse_args()

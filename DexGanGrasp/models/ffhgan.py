@@ -8,7 +8,7 @@ from DexGanGrasp.utils import utils
 
 import DexGanGrasp.models.losses as losses
 import DexGanGrasp.models.networks as networks
-from DexGanGrasp.models.networks import FFHGenerator,FFHEvaluator, FFHGAN
+from DexGanGrasp.models.networks import DexEvaluator, DexGANGrasp
 
 def define_losses(loss_type_recon):
     """ This will return the loss functions. The KL divergence is fixed, but for the reconstruction loss
@@ -26,8 +26,8 @@ def define_losses(loss_type_recon):
 
 
 def build_ffhnet(cfg, device, is_train):
-    gen = FFHGAN(cfg)
-    eva = FFHEvaluator(cfg)
+    gen = DexGANGrasp(cfg)
+    eva = DexEvaluator(cfg)
     if torch.cuda.is_available:
         gen.to(device)
         eva.to(device)
@@ -62,7 +62,7 @@ def init_net(net):
     net.apply(init_func)
 
 # TODO: refactor. This class is used in train.py. eval.py and visualization.py
-class FFHGANet(object):
+class DexGanGrasp(object):
     """ Wrapper which houses the network blocks, the losses and training logic.
     """
 
@@ -80,9 +80,9 @@ class FFHGANet(object):
 
         # model, optimizer, scheduler_ffhgenerator, losses
         if cfg["model"] == "ffhnet":
-            self.FFHGAN, self.FFHEvaluator = build_ffhnet(cfg, self.device, is_train=self.is_train)
+            self.DexGANGrasp, self.DexEvaluator = build_ffhnet(cfg, self.device, is_train=self.is_train)
         elif cfg["model"] == "ffhgan":
-            self.FFHGAN, self.FFHEvaluator = build_ffhnet(cfg, self.device, is_train=self.is_train)
+            self.DexGANGrasp, self.DexEvaluator = build_ffhnet(cfg, self.device, is_train=self.is_train)
         else:
             raise ValueError('Wrong configure model name of', cfg["model"])
 
@@ -94,19 +94,19 @@ class FFHGANet(object):
             self.conf_coef = 10.
             self.train_ffhgenerator = cfg["train_ffhgenerator"]
             self.train_ffhevaluator = cfg["train_ffhevaluator"]
-            self.optim_ffhgenerator = torch.optim.Adam(self.FFHGAN.parameters(),
+            self.optim_ffhgenerator = torch.optim.Adam(self.DexGANGrasp.parameters(),
                                                        lr=cfg["lr"],
                                                        betas=(cfg["beta1"], 0.999),
                                                        weight_decay=cfg["weight_decay"])
-            self.optim_ffhgan_generator = torch.optim.Adam(self.FFHGAN.generator.parameters(),
+            self.optim_ffhgan_generator = torch.optim.Adam(self.DexGANGrasp.generator.parameters(),
                                                        lr=cfg["lr_gen"],
                                                        betas=(cfg["beta1"], 0.999),
                                                        weight_decay=cfg["weight_decay"])
-            self.optim_ffhgan_discriminator = torch.optim.Adam(self.FFHGAN.discriminator.parameters(),
+            self.optim_ffhgan_discriminator = torch.optim.Adam(self.DexGANGrasp.discriminator.parameters(),
                                                        lr=cfg["lr_dis"],
                                                        betas=(cfg["beta1"], 0.999),
                                                        weight_decay=cfg["weight_decay"])
-            self.optim_ffhevaluator = torch.optim.Adam(self.FFHEvaluator.parameters(),
+            self.optim_ffhevaluator = torch.optim.Adam(self.DexEvaluator.parameters(),
                                                        lr=cfg["lr"],
                                                        betas=(cfg["beta1"], 0.999),
                                                        weight_decay=cfg["weight_decay"])
@@ -125,14 +125,14 @@ class FFHGANet(object):
 
         # Wrap models if we use multi-gpu
         if len(cfg["gpu_ids"]) > 1:
-            self.FFHGAN = torch.nn.DataParallel(self.FFHGAN, device_ids=cfg["gpu_ids"])
-            self.FFHEvaluator = torch.nn.DataParallel(self.FFHEvaluator, device_ids=cfg["gpu_ids"])
+            self.DexGANGrasp = torch.nn.DataParallel(self.DexGANGrasp, device_ids=cfg["gpu_ids"])
+            self.DexEvaluator = torch.nn.DataParallel(self.DexEvaluator, device_ids=cfg["gpu_ids"])
 
         # count params
-        ffhgenerator_vars = [var[1] for var in self.FFHGAN.named_parameters()]
+        ffhgenerator_vars = [var[1] for var in self.DexGANGrasp.named_parameters()]
         ffhgenerator_n_params = sum(p.numel() for p in ffhgenerator_vars if p.requires_grad)
         print("The ffhgenerator has {:2.2f} parms".format(ffhgenerator_n_params))
-        ffhevaluator_vars = [var[1] for var in self.FFHEvaluator.named_parameters()]
+        ffhevaluator_vars = [var[1] for var in self.DexEvaluator.named_parameters()]
         ffhevaluator_n_params = sum(p.numel() for p in ffhevaluator_vars if p.requires_grad)
         print("The ffhevaluator has {:2.2f} parms".format(ffhevaluator_n_params))
         # TODO count flops as well
@@ -142,7 +142,7 @@ class FFHGANet(object):
     def compute_loss_ffhevaluator(self, pred_success_p):
         """Computes the binary cross entropy loss between predicted success-label and true success"""
         bce_loss_val = self.bce_weight * \
-            self.BCE_loss(pred_success_p, self.FFHEvaluator.gt_label)
+            self.BCE_loss(pred_success_p, self.DexEvaluator.gt_label)
         loss_dict = {'total_loss_eva': bce_loss_val, 'bce_loss': bce_loss_val}
         return bce_loss_val, loss_dict
 
@@ -154,14 +154,14 @@ class FFHGANet(object):
 
         # Pose loss, translation rotation
         gt_transl_rot_matrix = {
-            'transl': self.FFHGAN.transl,
-            'rot_matrix': self.FFHGAN.rot_matrix
+            'transl': self.DexGANGrasp.transl,
+            'rot_matrix': self.DexGANGrasp.rot_matrix
         }
         transl_loss_val, rot_loss_val = self.rec_pose_loss(data_rec, gt_transl_rot_matrix,
                                                            self.L2_loss, self.device)
 
         # Loss on joint angles
-        conf_loss_val = self.L2_loss(data_rec['joint_conf'], self.FFHGAN.joint_conf)
+        conf_loss_val = self.L2_loss(data_rec['joint_conf'], self.DexGANGrasp.joint_conf)
 
         # Put all losses in one dict and weigh them individually
         loss_dict = {
@@ -179,15 +179,15 @@ class FFHGANet(object):
     def calculate_interp(self, real_data, fake_data):
         # Random weight term for interpolation between real and fake data
         if len(real_data.shape)==3:
-            alpha = torch.randn((real_data.size(0), 1, 1), device=self.FFHGAN.device)
+            alpha = torch.randn((real_data.size(0), 1, 1), device=self.DexGANGrasp.device)
         else:
-            alpha = torch.randn((real_data.size(0), 1), device=self.FFHGAN.device)
+            alpha = torch.randn((real_data.size(0), 1), device=self.DexGANGrasp.device)
         # Get random interpolation between real and fake data
         interpolates = (alpha * real_data + ((1 - alpha) * fake_data)).requires_grad_(True)
         return interpolates
     
     def calculate_grad_interp(self, interpolates, model_interpolates):
-        grad_outputs = torch.ones(model_interpolates.size(), device=self.FFHGAN.device, requires_grad=False)
+        grad_outputs = torch.ones(model_interpolates.size(), device=self.DexGANGrasp.device, requires_grad=False)
 
         # Get gradient w.r.t. interpolates
         gradients = torch.autograd.grad(
@@ -207,9 +207,9 @@ class FFHGANet(object):
         fake_transl = fake_data["transl"]
         fake_joint_conf = fake_data["joint_conf"]
 
-        real_rot_matrix = real_data["rot_matrix"].to(self.FFHGAN.device)
-        real_transl = real_data["transl"].to(self.FFHGAN.device)
-        real_joint_conf = real_data["joint_conf"].to(self.FFHGAN.device)
+        real_rot_matrix = real_data["rot_matrix"].to(self.DexGANGrasp.device)
+        real_transl = real_data["transl"].to(self.DexGANGrasp.device)
+        real_joint_conf = real_data["joint_conf"].to(self.DexGANGrasp.device)
         interp_data = {
                 "bps_object": real_data["bps_object"],
                 "rot_matrix": self.calculate_interp(real_rot_matrix,fake_rot_matrix),
@@ -217,7 +217,7 @@ class FFHGANet(object):
                 "joint_conf": self.calculate_interp(real_joint_conf,fake_joint_conf)
             }
 
-        interpolate_scores = self.FFHGAN.discriminator(interp_data)
+        interpolate_scores = self.DexGANGrasp.discriminator(interp_data)
         gradient_penaties = []
 
         for out in ["rot_matrix", "transl", "joint_conf"]:
@@ -266,16 +266,16 @@ class FFHGANet(object):
         """
         # Pose loss, translation rotation
         gt_transl_rot_matrix = {
-            'transl': real_data['transl'].to(self.FFHGAN.device).float(),
-            'rot_matrix': real_data['rot_matrix'].to(self.FFHGAN.device).float()
+            'transl': real_data['transl'].to(self.DexGANGrasp.device).float(),
+            'rot_matrix': real_data['rot_matrix'].to(self.DexGANGrasp.device).float()
         }
         transl_loss_val, rot_loss_val = self.rec_pose_loss(fake_data, gt_transl_rot_matrix,
                                                            self.L2_loss, self.device)
         transl_loss_val, rot_loss_val = transl_loss_val, rot_loss_val
         # Loss on joint angles
         conf_loss_val = self.L2_loss(
-            fake_data['joint_conf'].to(self.FFHGAN.device).float(), 
-            real_data['joint_conf'].to(self.FFHGAN.device).float()
+            fake_data['joint_conf'].to(self.DexGANGrasp.device).float(), 
+            real_data['joint_conf'].to(self.DexGANGrasp.device).float()
         )
 
         # Wasserstein Generator fake loss
@@ -304,16 +304,16 @@ class FFHGANet(object):
         """
         # Pose loss, translation rotation
         gt_transl_rot_matrix = {
-            'transl': real_data['transl'].to(self.FFHGAN.device).float(),
-            'rot_matrix': real_data['rot_matrix'].to(self.FFHGAN.device).float()
+            'transl': real_data['transl'].to(self.DexGANGrasp.device).float(),
+            'rot_matrix': real_data['rot_matrix'].to(self.DexGANGrasp.device).float()
         }
         transl_loss_val, rot_loss_val = self.rec_pose_loss(fake_data, gt_transl_rot_matrix,
                                                            self.L2_loss, self.device)
         transl_loss_val, rot_loss_val = transl_loss_val, rot_loss_val
         # Loss on joint angles
         conf_loss_val = self.L2_loss(
-            fake_data['joint_conf'].to(self.FFHGAN.device).float(), 
-            real_data['joint_conf'].to(self.FFHGAN.device).float()
+            fake_data['joint_conf'].to(self.DexGANGrasp.device).float(), 
+            real_data['joint_conf'].to(self.DexGANGrasp.device).float()
         )
 
         # Generator fake loss
@@ -337,47 +337,47 @@ class FFHGANet(object):
         return total_loss, loss_dict
 
     def eval_ffhevaluator_accuracy(self, data):
-        logits = self.FFHEvaluator(data)  # network outputs logits
+        logits = self.DexEvaluator(data)  # network outputs logits
 
         # Turn the output logits into class labels. logits > thresh = 1, < thresh = 0
         pred_label = utils.class_labels_from_logits(logits, self.logit_thresh)
 
         # Compute the accuracy for positive and negative class
-        pos_acc, neg_acc, acc = self.compute_eva_accuracy(pred_label, self.FFHEvaluator.gt_label)
+        pos_acc, neg_acc, acc = self.compute_eva_accuracy(pred_label, self.DexEvaluator.gt_label)
 
         # Turn the raw predictions into np arrays and return for confusion matrix
         pred_label_np = pred_label.detach().cpu().numpy()
-        gt_label_np = self.FFHEvaluator.gt_label.detach().cpu().numpy()
+        gt_label_np = self.DexEvaluator.gt_label.detach().cpu().numpy()
 
         return pos_acc, neg_acc, pred_label_np, gt_label_np
 
 
     def eval_ffhevaluator_loss(self, data):
-        self.FFHEvaluator.eval()
+        self.DexEvaluator.eval()
 
         with torch.no_grad():
-            out = self.FFHEvaluator(data)
+            out = self.DexEvaluator(data)
             _, loss_dict_ffhevaluator = self.compute_loss_ffhevaluator(out)
 
         return loss_dict_ffhevaluator
 
     def eval_ffhgenerator_loss(self, data):
-        self.FFHGAN.eval()
+        self.DexGANGrasp.eval()
 
         with torch.no_grad():
-            data_rec = self.FFHGAN(data)
+            data_rec = self.DexGANGrasp(data)
             _, loss_dict_ffhgenerator = self.compute_loss_ffhgenerator(data_rec)
 
         return loss_dict_ffhgenerator
     
     def eval_ffhgan_generator_loss(self, real_data):
-        self.FFHGAN.eval()
+        self.DexGANGrasp.eval()
         with torch.no_grad():
             n_samples = real_data["bps_object"].shape[0]
-            Zgen = torch.randn((n_samples, self.FFHGAN.latentD), dtype=self.FFHGAN.dtype, device=self.FFHGAN.device)
-            # Zgen = torch.randn((n_samples, self.FFHGAN.latentD), dtype=self.FFHGAN.dtype)
+            Zgen = torch.randn((n_samples, self.DexGANGrasp.latentD), dtype=self.DexGANGrasp.dtype, device=self.DexGANGrasp.device)
+            # Zgen = torch.randn((n_samples, self.DexGANGrasp.latentD), dtype=self.DexGANGrasp.dtype)
             # Run forward pass of ffhgenerator and reconstruct the data
-            y_fake = self.FFHGAN.generator(Zgen, real_data["bps_object"].to(self.FFHGAN.device))
+            y_fake = self.DexGANGrasp.generator(Zgen, real_data["bps_object"].to(self.DexGANGrasp.device))
             fake_rot_6D = y_fake["rot_6D"]
             fake_transl = y_fake["transl"]
             fake_joint_conf = y_fake["joint_conf"]
@@ -394,7 +394,7 @@ class FFHGANet(object):
             # Train Generator
             fake_data_gen = fake_data
             fake_data_gen["rot_matrix"] = y_fake["rot_matrix"]
-            fake_score_gen = self.FFHGAN.discriminator(fake_data_gen)
+            fake_score_gen = self.DexGANGrasp.discriminator(fake_data_gen)
             # Compute loss based on reconstructed data
             real_data["rot_matrix"] = real_data["rot_matrix"].view(real_data["bps_object"].shape[0], -1)
             is_wgan = self.is_wgan
@@ -422,7 +422,7 @@ class FFHGANet(object):
         grasps['bps_object'] = bps
         grasps_t = utils.dict_to_tensor(grasps, device=self.device, dtype=self.dtype)
 
-        p_success = self.FFHEvaluator(grasps_t).squeeze()
+        p_success = self.DexEvaluator(grasps_t).squeeze()
 
         if return_arr:
             p_success = p_success.cpu().detach().numpy()
@@ -430,7 +430,7 @@ class FFHGANet(object):
         return p_success
 
     def filter_grasps(self, bps, grasps, thresh=0.5, return_arr=True):
-        """ Takes in grasps generated by the FFHGenerator for a bps encoding of an object and removes every grasp#
+        """ Takes in grasps generated by the DexGenerator for a bps encoding of an object and removes every grasp#
         with predicted success probability less than thresh
 
         Args:
@@ -447,7 +447,7 @@ class FFHGANet(object):
         grasps['bps_object'] = bps
         grasps_t = utils.dict_to_tensor(grasps, device=self.device, dtype=self.dtype)
 
-        p_success = self.FFHEvaluator(grasps_t).squeeze()  # tensor([...])
+        p_success = self.DexEvaluator(grasps_t).squeeze()  # tensor([...])
         sorted_score, indices = p_success.sort(descending=True)
 
         if sorted_score[0] < thresh:
@@ -481,7 +481,7 @@ class FFHGANet(object):
         return filt_grasps
     
     def filter_grasps_discriminator(self, bps, grasps, thresh=0.5, return_arr=True):
-        """ Takes in grasps generated by the FFHGenerator for a bps encoding of an object and removes every grasp#
+        """ Takes in grasps generated by the DexGenerator for a bps encoding of an object and removes every grasp#
         with predicted success probability less than thresh
 
         Args:
@@ -498,7 +498,7 @@ class FFHGANet(object):
         grasps['bps_object'] = bps
         grasps_t = utils.dict_to_tensor(grasps, device=self.device, dtype=self.dtype)
 
-        p_success = self.FFHGAN.discriminator(grasps_t).squeeze()  # tensor([...])
+        p_success = self.DexGANGrasp.discriminator(grasps_t).squeeze()  # tensor([...])
         sorted_score, indices = p_success.sort(descending=True)
 
         if sorted_score[0] < thresh:
@@ -550,7 +550,7 @@ class FFHGANet(object):
         bps = np.tile(bps, (n_samples, 1))
         bps_tensor = torch.tensor(bps, dtype=self.dtype, device=self.device)
 
-        return self.FFHGAN.generate_poses(bps_tensor, return_arr=return_arr, z_offset=z_offset)
+        return self.DexGANGrasp.generate_poses(bps_tensor, return_arr=return_arr, z_offset=z_offset)
 
     def improve_grasps_gradient_based(self, data, last_success):
         """Apply small gradient steps to improve an initial grasp.
@@ -562,7 +562,7 @@ class FFHGANet(object):
         Returns:
             p_success (tensor): success probability of grasps in data.
         """
-        p_success = self.FFHEvaluator(data)
+        p_success = self.DexEvaluator(data)
         p_success.squeeze().backward(torch.ones(p_success.shape[0]).to(self.device))
 
         diff = np.abs(p_success.cpu().data.numpy().squeeze() -
@@ -624,15 +624,15 @@ class FFHGANet(object):
             load_path = os.path.join(load_path, str(epoch) + '_eva_net.pt')
 
         ckpt = torch.load(load_path, map_location=self.device)
-        self.FFHEvaluator.load_state_dict(ckpt['ffhevaluator_state_dict'])
+        self.DexEvaluator.load_state_dict(ckpt['ffhevaluator_state_dict'])
 
         if self.cfg["is_train"]:
             self.optim_ffhevaluator.load_state_dict(ckpt['optim_ffhevaluator_state_dict'])
             self.scheduler_ffhevaluator.load_state_dict(ckpt['scheduler_ffhevaluator_state_dict'])
             self.cfg["load_epoch"] = ckpt['epoch']
-            self.FFHEvaluator.train()
+            self.DexEvaluator.train()
         else:
-            self.FFHEvaluator.eval()
+            self.DexEvaluator.eval()
 
     def load_ffhgenerator(self, epoch, load_path=None):
         """Load ffhgenerator from disk and set to eval or train mode
@@ -647,17 +647,17 @@ class FFHGANet(object):
             load_path = os.path.join(load_path, str(epoch) + '_gen_net.pt')
 
         ckpt = torch.load(load_path, map_location=self.device)
-        self.FFHGAN.load_state_dict(ckpt['ffhgenerator_state_dict'])
+        self.DexGANGrasp.load_state_dict(ckpt['ffhgenerator_state_dict'])
 
         if self.cfg["is_train"]:
             print("Load TRAIN mode")
             # TODO: load state dict for genertor and discriminator
             self.optim_ffhgenerator.load_state_dict(ckpt['optim_ffhgenerator_state_dict'])
             self.scheduler_ffhgenerator.load_state_dict(ckpt['scheduler_ffhgenerator_state_dict'])
-            self.FFHGAN.train()
+            self.DexGANGrasp.train()
         else:
             print("Network in EVAL mode")
-            self.FFHGAN.eval()
+            self.DexGANGrasp.eval()
 
     def refine_grasps(self, data, refine_method, num_refine_steps=10, dtype=torch.float32):
         """ Refine sampled and ranked grasps.
@@ -696,7 +696,7 @@ class FFHGANet(object):
             refined_data.append(utils.grasp_numpy_from_data_dict(data))
 
         # we need to run the success on the final refined grasps
-        refined_success.append(self.FFHEvaluator(data).squeeze().cpu().data.numpy())
+        refined_success.append(self.DexEvaluator(data).squeeze().cpu().data.numpy())
 
         # print('Refinement took: ' + str(time.time() - start))
 
@@ -711,9 +711,9 @@ class FFHGANet(object):
         """
         save_path = os.path.join(self.cfg["save_dir"], net_name + '_eva_net.pt')
         if len(self.cfg["gpu_ids"]) > 1:
-            ffhevaluator_state_dict = self.FFHEvaluator.module.cpu().state_dict()
+            ffhevaluator_state_dict = self.DexEvaluator.module.cpu().state_dict()
         else:
-            ffhevaluator_state_dict = self.FFHEvaluator.cpu().state_dict()
+            ffhevaluator_state_dict = self.DexEvaluator.cpu().state_dict()
         torch.save(
             {
                 'epoch': epoch,
@@ -723,7 +723,7 @@ class FFHGANet(object):
             }, save_path)
 
         if torch.cuda.is_available():
-            self.FFHEvaluator.to(torch.device('cuda:{}'.format(self.cfg["gpu_ids"][0])))
+            self.DexEvaluator.to(torch.device('cuda:{}'.format(self.cfg["gpu_ids"][0])))
 
     def save_ffhgenerator(self, net_name, epoch):
         """ Save ffhgenerator to disk
@@ -734,9 +734,9 @@ class FFHGANet(object):
         """
         save_path = os.path.join(self.cfg["save_dir"], net_name + '_gen_net.pt')
         if len(self.cfg["gpu_ids"]) > 1:
-            ffhgenerator_state_dict = self.FFHGAN.module.cpu().state_dict()
+            ffhgenerator_state_dict = self.DexGANGrasp.module.cpu().state_dict()
         else:
-            ffhgenerator_state_dict = self.FFHGAN.cpu().state_dict()
+            ffhgenerator_state_dict = self.DexGANGrasp.cpu().state_dict()
         torch.save(
             {
                 'epoch': epoch,
@@ -752,7 +752,7 @@ class FFHGANet(object):
             }, save_path)
 
         if torch.cuda.is_available():
-            self.FFHGAN.to(torch.device('cuda:{}'.format(self.cfg["gpu_ids"][0])))
+            self.DexGANGrasp.to(torch.device('cuda:{}'.format(self.cfg["gpu_ids"][0])))
 
     def update_estop(self, eval_loss_dict):
         """"[Never used]"
@@ -781,10 +781,10 @@ class FFHGANet(object):
 
     def update_ffhevaluator(self, data):
         # Make sure net is in train mode
-        self.FFHEvaluator.train()
+        self.DexEvaluator.train()
 
         # Run forward pass of ffhevaluator and predict grasp success
-        out = self.FFHEvaluator(data)
+        out = self.DexEvaluator(data)
 
         # Compute loss based on reconstructed data
         total_loss_ffhevaluator, loss_dict_ffhevaluator = self.compute_loss_ffhevaluator(out)
@@ -801,10 +801,10 @@ class FFHGANet(object):
         """ Receives a dict with all the input data to the ffhgenerator, sets the model input and runs one complete update step.
         """
         # Make sure net is in train mode
-        self.FFHGAN.train()
+        self.DexGANGrasp.train()
 
         # Run forward pass of ffhgenerator and reconstruct the data
-        data_rec = self.FFHGAN(data)
+        data_rec = self.DexGANGrasp(data)
 
         # Compute loss based on reconstructed data
         total_loss_ffhgenerator, loss_dict_ffhgenerator = self.compute_loss_ffhgenerator(data_rec)
@@ -826,13 +826,13 @@ class FFHGANet(object):
         gen_loss = self.compute_loss_ffhgan_generator_wass if is_wgan else self.compute_loss_ffhgan_generator
         
         # Make sure net is in train mode
-        self.FFHGAN.train()
+        self.DexGANGrasp.train()
 
         #### Train Discriminator ####
         n_samples = real_data["bps_object"].shape[0]
-        Zgen = torch.randn((n_samples, self.FFHGAN.latentD), dtype=self.FFHGAN.dtype, device=self.FFHGAN.device)
+        Zgen = torch.randn((n_samples, self.DexGANGrasp.latentD), dtype=self.DexGANGrasp.dtype, device=self.DexGANGrasp.device)
         # Run forward pass of ffhgenerator and reconstruct the data
-        y_fake = self.FFHGAN.generator(Zgen, real_data["bps_object"].to(self.FFHGAN.device))
+        y_fake = self.DexGANGrasp.generator(Zgen, real_data["bps_object"].to(self.DexGANGrasp.device))
         fake_rot_6D = y_fake["rot_6D"]
         fake_transl = y_fake["transl"]
         fake_joint_conf = y_fake["joint_conf"]
@@ -848,9 +848,9 @@ class FFHGANet(object):
         }
 
         # Pass both real and fake data through the discriminator
-        real_score = self.FFHGAN.discriminator(real_data)
-        fake_score = self.FFHGAN.discriminator(fake_data_disc)
-        # fake_score = self.FFHGAN.discriminator(fake_data)
+        real_score = self.DexGANGrasp.discriminator(real_data)
+        fake_score = self.DexGANGrasp.discriminator(fake_data_disc)
+        # fake_score = self.DexGANGrasp.discriminator(fake_data)
         total_loss_disc, loss_dict_disc = disc_loss(real_score, fake_score, real_data, fake_data_disc)
         self.optim_ffhgan_discriminator.zero_grad()
         total_loss_disc.backward()
@@ -868,7 +868,7 @@ class FFHGANet(object):
             }
             fake_data_gen = fake_data
             fake_data_gen["rot_matrix"] = y_fake["rot_matrix"]
-            fake_score_gen = self.FFHGAN.discriminator(fake_data_gen)
+            fake_score_gen = self.DexGANGrasp.discriminator(fake_data_gen)
             # Compute loss based on reconstructed data
             real_data["rot_matrix"] = real_data["rot_matrix"].view(real_data["bps_object"].shape[0], -1)
             total_loss_gen, loss_dict_gen = gen_loss(real_data, fake_data, fake_score_gen)
