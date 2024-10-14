@@ -143,14 +143,14 @@ def maad_for_grasp_distribution(grasp1, grasp2):
 
     return np.sum(transl_loss), np.sum(rot_loss), np.sum(joint_loss), coverage
 
-def filter(ffhgan, obj_pcd_path, obj_bps, grasps, n_samples, is_discriminator = False, thresh_succ_list = [0.5, 0.75, 0.90], visualize = False):
+def filter(dexgangrasp, obj_pcd_path, obj_bps, grasps, n_samples, is_discriminator = False, thresh_succ_list = [0.5, 0.75, 0.90], visualize = False):
     if visualize:
         visualization.show_generated_grasp_distribution(obj_pcd_path, grasps)
 
     if is_discriminator:
-        filter_func = ffhgan.filter_grasps_discriminator
+        filter_func = dexgangrasp.filter_grasps_discriminator
     else:
-        filter_func = ffhgan.filter_grasps
+        filter_func = dexgangrasp.filter_grasps
 
     ############### Stage 1 ################
     # Reject grasps with low probability
@@ -243,9 +243,9 @@ def main(
     print(model)
     
     base_data_bath = os.path.join(ROOT_PATH,'data','real_objects')
-    model.load_ffhgenerator(epoch=load_epoch_gen, load_path=load_path_gen)
+    model.load_dexgenerator(epoch=load_epoch_gen, load_path=load_path_gen)
     
-    model.load_ffhevaluator(epoch=load_epoch_eva, load_path=load_path_eva)
+    model.load_dexevaluator(epoch=load_epoch_eva, load_path=load_path_eva)
     dset_gen = DexGeneratorDataSet(cfg, eval=True)
     train_loader_gen = DataLoader(dset_gen,
                                     batch_size=64,

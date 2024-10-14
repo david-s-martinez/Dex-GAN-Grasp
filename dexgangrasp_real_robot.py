@@ -121,11 +121,11 @@ load_epoch_eva = args.load_eva_epoch
 config_path = args.config
 config = Config(config_path)
 cfg = config.parse()
-ffhgan = DexGanGrasp(cfg)
-print(ffhgan)
+dexgangrasp = DexGanGrasp(cfg)
+print(dexgangrasp)
 base_data_bath = os.path.join(ROOT_PATH,'data','real_objects')
-ffhgan.load_ffhgenerator(epoch=load_epoch_gen, load_path=load_path_gen)
-ffhgan.load_ffhevaluator(epoch=load_epoch_eva, load_path=load_path_eva)
+dexgangrasp.load_dexgenerator(epoch=load_epoch_gen, load_path=load_path_gen)
+dexgangrasp.load_dexevaluator(epoch=load_epoch_eva, load_path=load_path_eva)
 path_real_objs_bps = os.path.join(base_data_bath, 'bps')
 
 bps_path = 'models/basis_point_set.npy'
@@ -174,14 +174,14 @@ try:
 
         enc_np = enc_dict['dists'].cpu().detach().numpy()
 
-        grasps = ffhgan.generate_grasps(enc_np, n_samples=400, return_arr=True)
+        grasps = dexgangrasp.generate_grasps(enc_np, n_samples=400, return_arr=True)
         print(grasps)
 
         # # # Visualize sampled distribution
         obj_pcd_path = './obj.pcd'
         o3d.io.write_point_cloud(obj_pcd_path, obj_pcd)
         # visualization.show_generated_grasp_distribution(obj_pcd_path, grasps)
-        filtered_grasps_2 = ffhgan.filter_grasps(enc_np, grasps, thresh=0.80)
+        filtered_grasps_2 = dexgangrasp.filter_grasps(enc_np, grasps, thresh=0.80)
         n_grasps_filt_2 = filtered_grasps_2['rot_matrix'].shape[0]
 
         print("n_grasps after filtering: %d" % n_grasps_filt_2)

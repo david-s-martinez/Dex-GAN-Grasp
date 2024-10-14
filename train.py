@@ -17,7 +17,7 @@ def update_mean_losses(mean_losses, new_losses):
         mean_losses[key] += new_losses[key].detach().cpu().numpy()
     return mean_losses
 
-def run_eval_gan_gen(ffhgan, cfg):
+def run_eval_gan_gen(dexgangrasp, cfg):
     print('Running eval for DexGANGrasp Generator')
     dset = DexGeneratorDataSet(cfg, eval = True)
     eval_loader = DataLoader(dset, batch_size=cfg["batch_size"], shuffle=False)
@@ -31,7 +31,7 @@ def run_eval_gan_gen(ffhgan, cfg):
         }
 
     for i, data in enumerate(eval_loader):
-        loss_dict = ffhgan.eval_ffhgan_generator_loss(data)
+        loss_dict = dexgangrasp.eval_dexgangrasp_generator_loss(data)
         if i % 100 == 0:
             print(i,'- Eval Loss:', loss_dict)
         mean_losses = update_mean_losses(mean_losses, loss_dict)
@@ -41,7 +41,7 @@ def run_eval_gan_gen(ffhgan, cfg):
 
     return mean_losses
 
-def run_eval_eva(ffhnet, dataloader, curr_epoch, eval_dir):
+def run_eval_eva(dexgangrasp, dataloader, curr_epoch, eval_dir):
     print('Running eval for DexEvaluator.')
 
     mean_losses = {
@@ -54,8 +54,8 @@ def run_eval_eva(ffhnet, dataloader, curr_epoch, eval_dir):
     gt_labels = np.array([])
 
     for i, data in enumerate(dataloader):
-        loss_dict = ffhnet.eval_ffhevaluator_loss(data)
-        pos_acc, neg_acc, pred_label, gt_label = ffhnet.eval_ffhevaluator_accuracy(data)
+        loss_dict = dexgangrasp.eval_dexevaluator_loss(data)
+        pos_acc, neg_acc, pred_label, gt_label = dexgangrasp.eval_dexevaluator_accuracy(data)
 
         mean_losses['total_loss_eva'] += loss_dict['total_loss_eva'].detach().cpu().numpy()
         mean_losses['pos_acc'] += pos_acc
@@ -73,14 +73,14 @@ def run_eval_eva(ffhnet, dataloader, curr_epoch, eval_dir):
 
     return mean_losses
 
-def run_eval_gan(cfg, curr_epoch, ffhgan=None, epoch=-1, name=""):
+def run_eval_gan(cfg, curr_epoch, dexgangrasp=None, epoch=-1, name=""):
     """Performs model evaluation on the eval set. Evaluates either only one or both the DexGenerator, DexEvaluator
     depending on the config settings.
 
     Args:
         eval_dir (str):
         curr_epoch (int):
-        ffhgan (FFHNet, optional): The full FFHNet model. Defaults to None.
+        dexgangrasp (DexGanGrasp, optional): The full DexGanGrasp model. Defaults to None.
         epoch (int, optional): Epoch from which to load a model. Defaults to -1.
         name (str, optional): Name of the model to be loaded. Defaults to "".
 
@@ -97,11 +97,11 @@ def run_eval_gan(cfg, curr_epoch, ffhgan=None, epoch=-1, name=""):
         if cfg["model"] == 'ffhnet':
             dset = DexEvaluatorDataSet(cfg,eval=True)
         eval_loader = DataLoader(dset, batch_size=cfg["batch_size"], shuffle=False)
-        eval_loss_dict_eva = run_eval_eva(ffhgan, eval_loader, curr_epoch, cfg["eval_dir"])
+        eval_loss_dict_eva = run_eval_eva(dexgangrasp, eval_loader, curr_epoch, cfg["eval_dir"])
         loss_dict.update(eval_loss_dict_eva)
 
     if cfg["eval_ffhgenerator"]:
-        eval_loss_dict_gen = run_eval_gan_gen(ffhgan, cfg)
+        eval_loss_dict_gen = run_eval_gan_gen(dexgangrasp, cfg)
         loss_dict.update(eval_loss_dict_gen)
 
     return loss_dict
@@ -143,12 +143,12 @@ def main():
 
     writer = Writer(cfg)
 
-    ffhgan = DexGanGrasp(cfg)
+    dexgangrasp = DexGanGrasp(cfg)
     if cfg["continue_train"]:
         if cfg["train_ffhevaluator"]:
-            ffhgan.load_ffhevaluator(cfg["load_epoch"])
+            dexgangrasp.load_dexevaluator(cfg["load_epoch"])
         if cfg["train_ffhgenerator"]:
-            ffhgan.load_ffhgenerator(cfg["load_epoch"])
+            dexgangrasp.load_dexgenerator(cfg["load_epoch"])
         start_epoch = cfg["load_epoch"] + 1
     else:
         start_epoch = 1
@@ -157,7 +157,7 @@ def main():
 
     for epoch in range(start_epoch, cfg["num_epochs"] + 1):
         # === Generator ===
-        if ffhgan.train_ffhgenerator:
+        if dexgangrasp.train_dexgenerator:
             # Initialize epoch / iter info
             prev_iter_end = time.time()
             epoch_iter = 0
@@ -173,9 +173,9 @@ def main():
 
                 # Update model one step, get losses
                 if i % cfg['gen_train_freq'] == 0:
-                    loss_dict = ffhgan.update_ffhgan(data, is_train_gen= True)
+                    loss_dict = dexgangrasp.update_dexgangrasp(data, is_train_gen= True)
                 else:
-                    loss_dict = ffhgan.update_ffhgan(data, is_train_gen = False)
+                    loss_dict = dexgangrasp.update_dexgangrasp(data, is_train_gen = False)
 
                 # Log loss
                 if total_steps % cfg["print_freq"] == 0:
@@ -188,7 +188,7 @@ def main():
                 # End of data loading generator
 
         # === Evaluator ===
-        if ffhgan.train_ffhevaluator:
+        if dexgangrasp.train_dexevaluator:
             # Initialize epoch / iter info
             prev_iter_end = time.time()
             epoch_iter = 0
@@ -200,7 +200,7 @@ def main():
                 epoch_iter += cfg["batch_size"]
 
                 # Update model one step, get losses
-                loss_dict = ffhgan.update_ffhevaluator(data)
+                loss_dict = dexgangrasp.update_dexevaluator(data)
 
                 # Log loss
                 if total_steps % cfg["print_freq"] == 0:
@@ -215,10 +215,10 @@ def main():
         # Save model after each epoch
         if epoch % cfg["save_freq"] == 0:
             print('Saving the model after epoch %d, iters %d' % (epoch, total_steps))
-            if ffhgan.train_ffhgenerator:
-                ffhgan.save_ffhgenerator(str(epoch), epoch)
-            if ffhgan.train_ffhevaluator:
-                ffhgan.save_ffhevaluator(str(epoch), epoch)
+            if dexgangrasp.train_dexgenerator:
+                dexgangrasp.save_dexgenerator(str(epoch), epoch)
+            if dexgangrasp.train_dexevaluator:
+                dexgangrasp.save_dexevaluator(str(epoch), epoch)
 
         # Some interesting prints
         epoch_diff = time.time() - epoch_start
@@ -227,12 +227,12 @@ def main():
         
         if epoch % cfg["save_freq"] == 0:
             # Eval model on eval dataset
-            eval_loss_dict = run_eval_gan(cfg, epoch, ffhgan=ffhgan)
+            eval_loss_dict = run_eval_gan(cfg, epoch, dexgangrasp=dexgangrasp)
             writer.print_current_eval_loss(epoch, eval_loss_dict)
             writer.plot_eval_loss(eval_loss_dict, epoch)
 
         # Plot model weights and losses
-        writer.plot_model_weights_gan(ffhgan, epoch)
+        writer.plot_model_weights_gan(dexgangrasp, epoch)
 
         # End of epoch
 

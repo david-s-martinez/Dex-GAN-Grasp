@@ -133,8 +133,8 @@ cfg = config.parse()
 model = DexGanGrasp(cfg)
 # print(model)
 base_data_bath = os.path.join(ROOT_PATH,'data','real_objects')
-model.load_ffhgenerator(epoch=load_epoch_gen, load_path=load_path_gen)
-model.load_ffhevaluator(epoch=load_epoch_eva, load_path=load_path_eva)
+model.load_dexgenerator(epoch=load_epoch_gen, load_path=load_path_gen)
+model.load_dexevaluator(epoch=load_epoch_eva, load_path=load_path_eva)
 
 path_real_objs_bps = os.path.join(base_data_bath, 'bps')
 

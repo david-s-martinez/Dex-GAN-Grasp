@@ -87,20 +87,20 @@ class Writer:
 
     def plot_model_weights(self, model, epoch):
         if hasattr(model, "train_ffhgenerator"):
-            if model.train_ffhgenerator and self.ts_board:
+            if model.train_dexgenerator and self.ts_board:
                 for name, param in model.DexGenerator.named_parameters():
                     self.ts_board.add_histogram('gen_' + name, param.clone().cpu().data.numpy(), epoch)
         if hasattr(model, "train_ffhevaluator"):
-            if model.train_ffhevaluator and self.ts_board:
+            if model.train_dexevaluator and self.ts_board:
                 for name, param in model.DexEvaluator.named_parameters():
                     self.ts_board.add_histogram('eva_' + name, param.clone().cpu().data.numpy(), epoch)
     def plot_model_weights_gan(self, model, epoch):
         if hasattr(model, "train_ffhgenerator"):
-            if model.train_ffhgenerator and self.ts_board:
+            if model.train_dexgenerator and self.ts_board:
                 for name, param in model.DexGANGrasp.named_parameters():
                     self.ts_board.add_histogram('gen_' + name, param.clone().cpu().data.numpy(), epoch)
         if hasattr(model, "train_ffhevaluator"):
-            if model.train_ffhevaluator and self.ts_board:
+            if model.train_dexevaluator and self.ts_board:
                 for name, param in model.DexEvaluator.named_parameters():
                     self.ts_board.add_histogram('eva_' + name, param.clone().cpu().data.numpy(), epoch)
 

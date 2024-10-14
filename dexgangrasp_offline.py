@@ -24,11 +24,11 @@ parser.add_argument('--config', help='Path to template image.',
                     default='DexGanGrasp/config/config_ffhnet_vm_debug.yaml')
 args = parser.parse_args()
 
-def filter(ffhgan, obj_pcd_path, obj_bps, grasps, n_samples, is_discriminator = False, thresh_succ_list = [0.5, 0.75, 0.90] ):
+def filter(dexgangrasp, obj_pcd_path, obj_bps, grasps, n_samples, is_discriminator = False, thresh_succ_list = [0.5, 0.75, 0.90] ):
     if is_discriminator:
-        filter_func = ffhgan.filter_grasps_discriminator
+        filter_func = dexgangrasp.filter_grasps_discriminator
     else:
-        filter_func = ffhgan.filter_grasps
+        filter_func = dexgangrasp.filter_grasps
 
     ############### Stage 1 ################
     # Reject grasps with low probability
@@ -62,7 +62,7 @@ def filter(ffhgan, obj_pcd_path, obj_bps, grasps, n_samples, is_discriminator = 
 
     return filtered_grasps_2 , n_grasps_filt_2
     
-def eval_ffhnet_sampling_and_filtering_real(config_path,
+def eval_dexgangrasp_sampling_and_filtering_real(config_path,
                                             load_epoch_eva,
                                             load_epoch_gen,
                                             load_path_eva,
@@ -74,11 +74,11 @@ def eval_ffhnet_sampling_and_filtering_real(config_path,
                                             is_discriminator = False):
     config = Config(config_path)
     cfg = config.parse()
-    ffhgan = DexGanGrasp(cfg)
-    print(ffhgan)
+    dexgangrasp = DexGanGrasp(cfg)
+    print(dexgangrasp)
     base_data_bath = os.path.join(ROOT_PATH,'data','real_objects')
-    ffhgan.load_ffhgenerator(epoch=load_epoch_gen, load_path=load_path_gen)
-    ffhgan.load_ffhevaluator(epoch=load_epoch_eva, load_path=load_path_eva)
+    dexgangrasp.load_dexgenerator(epoch=load_epoch_gen, load_path=load_path_gen)
+    dexgangrasp.load_dexevaluator(epoch=load_epoch_eva, load_path=load_path_eva)
     path_real_objs_bps = os.path.join(base_data_bath, 'bps')
     for f_name in os.listdir(path_real_objs_bps):
         print(f_name)
@@ -90,7 +90,7 @@ def eval_ffhnet_sampling_and_filtering_real(config_path,
         obj_pcd_path = os.path.join(base_data_bath, 'object', f_name_pcd)
 
         obj_bps = np.load(obj_bps_path)
-        grasps = ffhgan.generate_grasps(obj_bps, n_samples=n_samples, return_arr=True)
+        grasps = dexgangrasp.generate_grasps(obj_bps, n_samples=n_samples, return_arr=True)
 
         # Visualize sampled distribution
         visualization.show_generated_grasp_distribution(obj_pcd_path, [])
@@ -98,7 +98,7 @@ def eval_ffhnet_sampling_and_filtering_real(config_path,
 
         # Filter
         filtered_grasps_2 , n_grasps_filt_2 = filter(
-                                                ffhgan, 
+                                                dexgangrasp, 
                                                 obj_pcd_path, 
                                                 obj_bps, grasps, 
                                                 n_samples, 
@@ -163,12 +163,12 @@ def train():
 
     writer = Writer(cfg)
 
-    ffhgan = DexGanGrasp(cfg)
+    dexgangrasp = DexGanGrasp(cfg)
     # if cfg["continue_train"]:
     #     if cfg["train_ffhevaluator"]:
-    #         ffhgan.load_ffhevaluator(cfg["load_epoch"])
+    #         dexgangrasp.load_ffhevaluator(cfg["load_epoch"])
     #     if cfg["train_ffhgenerator"]:
-    #         ffhgan.load_ffhgenerator(cfg["load_epoch"])
+    #         dexgangrasp.load_dexgenerator(cfg["load_epoch"])
     #     start_epoch = cfg["load_epoch"] + 1
     # else:
     #     start_epoch = 1
@@ -194,7 +194,7 @@ def train():
                 t_load_data = cur_iter_start - prev_iter_end
 
             # Update model one step, get losses
-            loss_dict = ffhgan.update_ffhgan(data)
+            loss_dict = dexgangrasp.update_dexgangrasp(data)
 
             # Log loss
             if total_steps % cfg["print_freq"] == 0:
@@ -240,7 +240,7 @@ if __name__ == '__main__':
         load_epoch_eva = args.load_eva_epoch
         config_path = args.config
 
-        eval_ffhnet_sampling_and_filtering_real(config_path, 
+        eval_dexgangrasp_sampling_and_filtering_real(config_path, 
                                                 load_epoch_eva, 
                                                 load_epoch_gen, 
                                                 load_path_eva,

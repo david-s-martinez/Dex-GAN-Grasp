@@ -25,7 +25,7 @@ def define_losses(loss_type_recon):
     return kl_loss, reconstruction_loss
 
 
-def build_ffhnet(cfg, device, is_train):
+def build_network(cfg, device, is_train):
     gen = DexGANGrasp(cfg)
     eva = DexEvaluator(cfg)
     if torch.cuda.is_available:
@@ -78,11 +78,11 @@ class DexGanGrasp(object):
         else:
             self.device = torch.device('cpu')
 
-        # model, optimizer, scheduler_ffhgenerator, losses
+        # model, optimizer, scheduler_dexgenerator, losses
         if cfg["model"] == "ffhnet":
-            self.DexGANGrasp, self.DexEvaluator = build_ffhnet(cfg, self.device, is_train=self.is_train)
-        elif cfg["model"] == "ffhgan":
-            self.DexGANGrasp, self.DexEvaluator = build_ffhnet(cfg, self.device, is_train=self.is_train)
+            self.DexGANGrasp, self.DexEvaluator = build_network(cfg, self.device, is_train=self.is_train)
+        elif cfg["model"] == "dexgangrasp":
+            self.DexGANGrasp, self.DexEvaluator = build_network(cfg, self.device, is_train=self.is_train)
         else:
             raise ValueError('Wrong configure model name of', cfg["model"])
 
@@ -92,30 +92,30 @@ class DexGanGrasp(object):
             self.transl_coef = 100.
             self.rot_coef = 1.
             self.conf_coef = 10.
-            self.train_ffhgenerator = cfg["train_ffhgenerator"]
-            self.train_ffhevaluator = cfg["train_ffhevaluator"]
-            self.optim_ffhgenerator = torch.optim.Adam(self.DexGANGrasp.parameters(),
+            self.train_dexgenerator = cfg["train_ffhgenerator"]
+            self.train_dexevaluator = cfg["train_ffhevaluator"]
+            self.optim_dexgenerator = torch.optim.Adam(self.DexGANGrasp.parameters(),
                                                        lr=cfg["lr"],
                                                        betas=(cfg["beta1"], 0.999),
                                                        weight_decay=cfg["weight_decay"])
-            self.optim_ffhgan_generator = torch.optim.Adam(self.DexGANGrasp.generator.parameters(),
+            self.optim_dexgangrasp_generator = torch.optim.Adam(self.DexGANGrasp.generator.parameters(),
                                                        lr=cfg["lr_gen"],
                                                        betas=(cfg["beta1"], 0.999),
                                                        weight_decay=cfg["weight_decay"])
-            self.optim_ffhgan_discriminator = torch.optim.Adam(self.DexGANGrasp.discriminator.parameters(),
+            self.optim_dexgangrasp_discriminator = torch.optim.Adam(self.DexGANGrasp.discriminator.parameters(),
                                                        lr=cfg["lr_dis"],
                                                        betas=(cfg["beta1"], 0.999),
                                                        weight_decay=cfg["weight_decay"])
-            self.optim_ffhevaluator = torch.optim.Adam(self.DexEvaluator.parameters(),
+            self.optim_dexevaluator = torch.optim.Adam(self.DexEvaluator.parameters(),
                                                        lr=cfg["lr"],
                                                        betas=(cfg["beta1"], 0.999),
                                                        weight_decay=cfg["weight_decay"])
-            self.scheduler_ffhgenerator = networks.get_scheduler(self.optim_ffhgenerator, cfg)
-            self.scheduler_ffhgan_generator = networks.get_scheduler(self.optim_ffhgan_generator, cfg)
-            self.scheduler_ffhgan_discriminator = networks.get_scheduler(self.optim_ffhgan_discriminator, cfg)
-            self.scheduler_ffhevaluator = networks.get_scheduler(self.optim_ffhevaluator, cfg)
-            self.estop_ffhgenerator = EarlyStopping()
-            self.estop_ffhevaluator = EarlyStopping()
+            self.scheduler_dexgenerator = networks.get_scheduler(self.optim_dexgenerator, cfg)
+            self.scheduler_dexgangrasp_generator = networks.get_scheduler(self.optim_dexgangrasp_generator, cfg)
+            self.scheduler_dexgangrasp_discriminator = networks.get_scheduler(self.optim_dexgangrasp_discriminator, cfg)
+            self.scheduler_dexevaluator = networks.get_scheduler(self.optim_dexevaluator, cfg)
+            self.estop_dexgenerator = EarlyStopping()
+            self.estop_dexevaluator = EarlyStopping()
 
         self.kl_loss, self.rec_pose_loss = define_losses('transl_rot_6D_l2')
         self.L2_loss = torch.nn.MSELoss(reduction='mean')
@@ -129,52 +129,22 @@ class DexGanGrasp(object):
             self.DexEvaluator = torch.nn.DataParallel(self.DexEvaluator, device_ids=cfg["gpu_ids"])
 
         # count params
-        ffhgenerator_vars = [var[1] for var in self.DexGANGrasp.named_parameters()]
-        ffhgenerator_n_params = sum(p.numel() for p in ffhgenerator_vars if p.requires_grad)
-        print("The ffhgenerator has {:2.2f} parms".format(ffhgenerator_n_params))
-        ffhevaluator_vars = [var[1] for var in self.DexEvaluator.named_parameters()]
-        ffhevaluator_n_params = sum(p.numel() for p in ffhevaluator_vars if p.requires_grad)
-        print("The ffhevaluator has {:2.2f} parms".format(ffhevaluator_n_params))
+        dexgenerator_vars = [var[1] for var in self.DexGANGrasp.named_parameters()]
+        dexgenerator_n_params = sum(p.numel() for p in dexgenerator_vars if p.requires_grad)
+        print("The dexgenerator has {:2.2f} parms".format(dexgenerator_n_params))
+        dexevaluator_vars = [var[1] for var in self.DexEvaluator.named_parameters()]
+        dexevaluator_n_params = sum(p.numel() for p in dexevaluator_vars if p.requires_grad)
+        print("The dexevaluator has {:2.2f} parms".format(dexevaluator_n_params))
         # TODO count flops as well
         self.file_path = os.path.dirname(os.path.abspath(__file__))
         self.logit_thresh = 0.5
 
-    def compute_loss_ffhevaluator(self, pred_success_p):
+    def compute_loss_dexevaluator(self, pred_success_p):
         """Computes the binary cross entropy loss between predicted success-label and true success"""
         bce_loss_val = self.bce_weight * \
             self.BCE_loss(pred_success_p, self.DexEvaluator.gt_label)
         loss_dict = {'total_loss_eva': bce_loss_val, 'bce_loss': bce_loss_val}
         return bce_loss_val, loss_dict
-
-    def compute_loss_ffhgenerator(self, data_rec):
-        """ The model should output a 6D representation of a rotation, which then gets mapped back to
-        """
-        # KL loss
-        kl_loss_val = self.kl_loss(data_rec["mu"], data_rec["logvar"])
-
-        # Pose loss, translation rotation
-        gt_transl_rot_matrix = {
-            'transl': self.DexGANGrasp.transl,
-            'rot_matrix': self.DexGANGrasp.rot_matrix
-        }
-        transl_loss_val, rot_loss_val = self.rec_pose_loss(data_rec, gt_transl_rot_matrix,
-                                                           self.L2_loss, self.device)
-
-        # Loss on joint angles
-        conf_loss_val = self.L2_loss(data_rec['joint_conf'], self.DexGANGrasp.joint_conf)
-
-        # Put all losses in one dict and weigh them individually
-        loss_dict = {
-            'kl_loss': self.kl_coef * kl_loss_val,
-            'transl_loss': self.transl_coef * transl_loss_val,
-            'rot_loss': self.rot_coef * rot_loss_val,
-            'conf_loss': self.conf_coef * conf_loss_val
-        }
-        total_loss = self.kl_coef * kl_loss_val + self.transl_coef * transl_loss_val + \
-            self.rot_coef * rot_loss_val + self.conf_coef * conf_loss_val
-        loss_dict["total_loss_gen"] = total_loss
-
-        return total_loss, loss_dict
     
     def calculate_interp(self, real_data, fake_data):
         # Random weight term for interpolation between real and fake data
@@ -226,7 +196,7 @@ class DexGanGrasp(object):
             gradient_penaties.append(gradient_penalty)
         return torch.mean(torch.stack(gradient_penaties))
     
-    def compute_loss_ffhgan_discriminator_wass(self, real_score, fake_score, real_data, fake_data, penalty_gain = 10):
+    def compute_loss_dexgangrasp_discriminator_wass(self, real_score, fake_score, real_data, fake_data, penalty_gain = 10):
         """Computes the binary cross entropy loss between predicted real score and true real score"""
         bce_loss_real = torch.mean(real_score)
         bce_loss_fake = torch.mean(fake_score)
@@ -240,7 +210,7 @@ class DexGanGrasp(object):
 
         return total_loss_disc, loss_dict
     
-    def compute_loss_ffhgan_discriminator(self, real_score, fake_score, real_data = None, fake_data_disc = None):
+    def compute_loss_dexgangrasp_discriminator(self, real_score, fake_score, real_data = None, fake_data_disc = None):
         """Computes the binary cross entropy loss between predicted real score and true real score"""
         bce_loss_real = self.bce_weight * self.BCE_loss(
                                                 real_score, 
@@ -261,7 +231,7 @@ class DexGanGrasp(object):
 
         return total_loss_disc, loss_dict
     
-    def compute_loss_ffhgan_generator_wass(self, real_data, fake_data, fake_score):
+    def compute_loss_dexgangrasp_generator_wass(self, real_data, fake_data, fake_score):
         """ The model should output a 6D representation of a rotation, which then gets mapped back to
         """
         # Pose loss, translation rotation
@@ -299,7 +269,7 @@ class DexGanGrasp(object):
         
         return total_loss, loss_dict
     
-    def compute_loss_ffhgan_generator(self, real_data, fake_data, fake_score):
+    def compute_loss_dexgangrasp_generator(self, real_data, fake_data, fake_score):
         """ The model should output a 6D representation of a rotation, which then gets mapped back to
         """
         # Pose loss, translation rotation
@@ -336,7 +306,7 @@ class DexGanGrasp(object):
         self.last_loss_dict_gen = loss_dict
         return total_loss, loss_dict
 
-    def eval_ffhevaluator_accuracy(self, data):
+    def eval_dexevaluator_accuracy(self, data):
         logits = self.DexEvaluator(data)  # network outputs logits
 
         # Turn the output logits into class labels. logits > thresh = 1, < thresh = 0
@@ -352,31 +322,22 @@ class DexGanGrasp(object):
         return pos_acc, neg_acc, pred_label_np, gt_label_np
 
 
-    def eval_ffhevaluator_loss(self, data):
+    def eval_dexevaluator_loss(self, data):
         self.DexEvaluator.eval()
 
         with torch.no_grad():
             out = self.DexEvaluator(data)
-            _, loss_dict_ffhevaluator = self.compute_loss_ffhevaluator(out)
+            _, loss_dict_dexevaluator = self.compute_loss_dexevaluator(out)
 
-        return loss_dict_ffhevaluator
-
-    def eval_ffhgenerator_loss(self, data):
-        self.DexGANGrasp.eval()
-
-        with torch.no_grad():
-            data_rec = self.DexGANGrasp(data)
-            _, loss_dict_ffhgenerator = self.compute_loss_ffhgenerator(data_rec)
-
-        return loss_dict_ffhgenerator
+        return loss_dict_dexevaluator
     
-    def eval_ffhgan_generator_loss(self, real_data):
+    def eval_dexgangrasp_generator_loss(self, real_data):
         self.DexGANGrasp.eval()
         with torch.no_grad():
             n_samples = real_data["bps_object"].shape[0]
             Zgen = torch.randn((n_samples, self.DexGANGrasp.latentD), dtype=self.DexGANGrasp.dtype, device=self.DexGANGrasp.device)
             # Zgen = torch.randn((n_samples, self.DexGANGrasp.latentD), dtype=self.DexGANGrasp.dtype)
-            # Run forward pass of ffhgenerator and reconstruct the data
+            # Run forward pass of dexgenerator and reconstruct the data
             y_fake = self.DexGANGrasp.generator(Zgen, real_data["bps_object"].to(self.DexGANGrasp.device))
             fake_rot_6D = y_fake["rot_6D"]
             fake_transl = y_fake["transl"]
@@ -398,10 +359,10 @@ class DexGanGrasp(object):
             # Compute loss based on reconstructed data
             real_data["rot_matrix"] = real_data["rot_matrix"].view(real_data["bps_object"].shape[0], -1)
             is_wgan = self.is_wgan
-            gen_loss = self.compute_loss_ffhgan_generator_wass if is_wgan else self.compute_loss_ffhgan_generator
-            _, loss_dict_ffhgenerator = gen_loss(real_data, fake_data, fake_score_gen)
+            gen_loss = self.compute_loss_dexgangrasp_generator_wass if is_wgan else self.compute_loss_dexgangrasp_generator
+            _, loss_dict_dexgenerator = gen_loss(real_data, fake_data, fake_score_gen)
             
-        return loss_dict_ffhgenerator
+        return loss_dict_dexgenerator
 
     def evaluate_grasps(self, bps, grasps, thresh=0.5, return_arr=True):
         """Receives n grasps together with bps encodings of queried object and evaluates the probability of success.
@@ -584,7 +545,7 @@ class DexGanGrasp(object):
             if last_success is None:
                 grasp_pcs = utils.control_points_from_rot_and_trans(grasp_eulers, grasp_trans,
                                                                     self.device)
-                last_success = self.grasp_evaluator.eval_ffhevaluator_accuracy(pcs, grasp_pcs)
+                last_success = self.grasp_evaluator.eval_dexevaluator_accuracy(pcs, grasp_pcs)
 
             delta_t = 2 * (torch.rand(grasp_trans.shape).to(self.device) - 0.5)
             delta_t *= 0.02
@@ -594,7 +555,7 @@ class DexGanGrasp(object):
             grasp_pcs = utils.control_points_from_rot_and_trans(perturbed_euler_angles,
                                                                 perturbed_translation, self.device)
 
-            perturbed_success = self.grasp_evaluator.eval_ffhevaluator_accuracy(pcs, grasp_pcs)
+            perturbed_success = self.grasp_evaluator.eval_dexevaluator_accuracy(pcs, grasp_pcs)
             ratio = perturbed_success / torch.max(last_success,
                                                   torch.tensor(0.0001).to(self.device))
 
@@ -607,12 +568,8 @@ class DexGanGrasp(object):
             grasp_eulers[ind].data = perturbed_euler_angles.data[ind]
             return last_success.squeeze(), next_success
 
-    def load_ffhnet(self, epoch):
-        self.load_ffhevaluator(epoch)
-        self.load_ffhgenerator(epoch)
-
-    def load_ffhevaluator(self, epoch, load_path=None):
-        """Load ffhevaluator from disk and set to eval or train mode.
+    def load_dexevaluator(self, epoch, load_path=None):
+        """Load dexevaluator from disk and set to eval or train mode.
         """
         if epoch == -1:
             path = os.path.split(os.path.split(self.file_path)[0])[0]
@@ -627,15 +584,15 @@ class DexGanGrasp(object):
         self.DexEvaluator.load_state_dict(ckpt['ffhevaluator_state_dict'])
 
         if self.cfg["is_train"]:
-            self.optim_ffhevaluator.load_state_dict(ckpt['optim_ffhevaluator_state_dict'])
-            self.scheduler_ffhevaluator.load_state_dict(ckpt['scheduler_ffhevaluator_state_dict'])
+            self.optim_dexevaluator.load_state_dict(ckpt['optim_ffhevaluator_state_dict'])
+            self.scheduler_dexevaluator.load_state_dict(ckpt['scheduler_ffhevaluator_state_dict'])
             self.cfg["load_epoch"] = ckpt['epoch']
             self.DexEvaluator.train()
         else:
             self.DexEvaluator.eval()
 
-    def load_ffhgenerator(self, epoch, load_path=None):
-        """Load ffhgenerator from disk and set to eval or train mode
+    def load_dexgenerator(self, epoch, load_path=None):
+        """Load dexgenerator from disk and set to eval or train mode
         """
         if epoch == -1:
             path = os.path.split(os.path.split(self.file_path)[0])[0]
@@ -652,8 +609,8 @@ class DexGanGrasp(object):
         if self.cfg["is_train"]:
             print("Load TRAIN mode")
             # TODO: load state dict for genertor and discriminator
-            self.optim_ffhgenerator.load_state_dict(ckpt['optim_ffhgenerator_state_dict'])
-            self.scheduler_ffhgenerator.load_state_dict(ckpt['scheduler_ffhgenerator_state_dict'])
+            self.optim_dexgenerator.load_state_dict(ckpt['optim_ffhgenerator_state_dict'])
+            self.scheduler_dexgenerator.load_state_dict(ckpt['scheduler_ffhgenerator_state_dict'])
             self.DexGANGrasp.train()
         else:
             print("Network in EVAL mode")
@@ -702,8 +659,8 @@ class DexGanGrasp(object):
 
         return refined_data, refined_success
 
-    def save_ffhevaluator(self, net_name, epoch):
-        """ Save ffhevaluator to disk
+    def save_dexevaluator(self, net_name, epoch):
+        """ Save dexevaluator to disk
 
         Args:
             net_name (str): The name of the model.
@@ -711,22 +668,22 @@ class DexGanGrasp(object):
         """
         save_path = os.path.join(self.cfg["save_dir"], net_name + '_eva_net.pt')
         if len(self.cfg["gpu_ids"]) > 1:
-            ffhevaluator_state_dict = self.DexEvaluator.module.cpu().state_dict()
+            dexevaluator_state_dict = self.DexEvaluator.module.cpu().state_dict()
         else:
-            ffhevaluator_state_dict = self.DexEvaluator.cpu().state_dict()
+            dexevaluator_state_dict = self.DexEvaluator.cpu().state_dict()
         torch.save(
             {
                 'epoch': epoch,
-                'ffhevaluator_state_dict': ffhevaluator_state_dict,
-                'optim_ffhevaluator_state_dict': self.optim_ffhevaluator.state_dict(),
-                'scheduler_ffhevaluator_state_dict': self.scheduler_ffhevaluator.state_dict(),
+                'ffhevaluator_state_dict': dexevaluator_state_dict,
+                'optim_ffhevaluator_state_dict': self.optim_dexevaluator.state_dict(),
+                'scheduler_ffhevaluator_state_dict': self.scheduler_dexevaluator.state_dict(),
             }, save_path)
 
         if torch.cuda.is_available():
             self.DexEvaluator.to(torch.device('cuda:{}'.format(self.cfg["gpu_ids"][0])))
 
-    def save_ffhgenerator(self, net_name, epoch):
-        """ Save ffhgenerator to disk
+    def save_dexgenerator(self, net_name, epoch):
+        """ Save dexgenerator to disk
 
         Args:
             net_name (str): The name of the model.
@@ -734,21 +691,21 @@ class DexGanGrasp(object):
         """
         save_path = os.path.join(self.cfg["save_dir"], net_name + '_gen_net.pt')
         if len(self.cfg["gpu_ids"]) > 1:
-            ffhgenerator_state_dict = self.DexGANGrasp.module.cpu().state_dict()
+            dexgenerator_state_dict = self.DexGANGrasp.module.cpu().state_dict()
         else:
-            ffhgenerator_state_dict = self.DexGANGrasp.cpu().state_dict()
+            dexgenerator_state_dict = self.DexGANGrasp.cpu().state_dict()
         torch.save(
             {
                 'epoch': epoch,
-                'ffhgenerator_state_dict': ffhgenerator_state_dict,
-                'optim_ffhgenerator_state_dict': self.optim_ffhgenerator.state_dict(),
-                'scheduler_ffhgenerator_state_dict': self.scheduler_ffhgenerator.state_dict(),
+                'ffhgenerator_state_dict': dexgenerator_state_dict,
+                'optim_ffhgenerator_state_dict': self.optim_dexgenerator.state_dict(),
+                'scheduler_ffhgenerator_state_dict': self.scheduler_dexgenerator.state_dict(),
 
-                'optim_ffhgan_generator_state_dict': self.optim_ffhgan_generator.state_dict(),
-                'scheduler_ffhgan_generator_state_dict': self.scheduler_ffhgan_generator.state_dict(),
+                'optim_ffhgan_generator_state_dict': self.optim_dexgangrasp_generator.state_dict(),
+                'scheduler_ffhgan_generator_state_dict': self.scheduler_dexgangrasp_generator.state_dict(),
 
-                'optim_ffhgan_discriminator_state_dict': self.optim_ffhgan_discriminator.state_dict(),
-                'scheduler_ffhgan_discriminator_state_dict': self.scheduler_ffhgan_discriminator.state_dict(),
+                'optim_ffhgan_discriminator_state_dict': self.optim_dexgangrasp_discriminator.state_dict(),
+                'scheduler_ffhgan_discriminator_state_dict': self.scheduler_dexgangrasp_discriminator.state_dict(),
             }, save_path)
 
         if torch.cuda.is_available():
@@ -760,70 +717,50 @@ class DexGanGrasp(object):
         Args:
             eval_loss_dict (dict): Dict with all the relevant losses
         """
-        if self.train_ffhevaluator:
-            if self.estop_ffhevaluator(eval_loss_dict['total_loss_eva']):
-                self.train_ffhevaluator = False
-        if self.train_ffhgenerator:
-            if self.estop_ffhgenerator(eval_loss_dict['total_loss_gen']):
-                self.train_ffhgenerator = False
+        if self.train_dexevaluator:
+            if self.estop_dexevaluator(eval_loss_dict['total_loss_eva']):
+                self.train_dexevaluator = False
+        if self.train_dexgenerator:
+            if self.estop_dexgenerator(eval_loss_dict['total_loss_gen']):
+                self.train_dexgenerator = False
 
     def update_learning_rate(self, eval_loss_dict):
         """update learning rate (called once every epoch)"""
-        if self.train_ffhevaluator:
-            self.scheduler_ffhevaluator.step(eval_loss_dict['total_loss_eva'])
-            lr_eva = self.optim_ffhevaluator.param_groups[0]['lr']
+        if self.train_dexevaluator:
+            self.scheduler_dexevaluator.step(eval_loss_dict['total_loss_eva'])
+            lr_eva = self.optim_dexevaluator.param_groups[0]['lr']
             print('learning rate evaluator = %.7f' % lr_eva)
 
-        if self.train_ffhgenerator:
-            self.scheduler_ffhgenerator.step(eval_loss_dict['total_loss_gen'])
-            lr_gen = self.optim_ffhgenerator.param_groups[0]['lr']
+        if self.train_dexgenerator:
+            self.scheduler_dexgenerator.step(eval_loss_dict['total_loss_gen'])
+            lr_gen = self.optim_dexgenerator.param_groups[0]['lr']
             print('learning rate generator = %.7f' % lr_gen)
 
-    def update_ffhevaluator(self, data):
+    def update_dexevaluator(self, data):
         # Make sure net is in train mode
         self.DexEvaluator.train()
 
-        # Run forward pass of ffhevaluator and predict grasp success
+        # Run forward pass of dexevaluator and predict grasp success
         out = self.DexEvaluator(data)
 
         # Compute loss based on reconstructed data
-        total_loss_ffhevaluator, loss_dict_ffhevaluator = self.compute_loss_ffhevaluator(out)
+        total_loss_dexevaluator, loss_dict_dexevaluator = self.compute_loss_dexevaluator(out)
 
         # Zero gradients, backprop new loss gradient, run one step
-        self.optim_ffhevaluator.zero_grad()
-        total_loss_ffhevaluator.backward()
-        self.optim_ffhevaluator.step()
+        self.optim_dexevaluator.zero_grad()
+        total_loss_dexevaluator.backward()
+        self.optim_dexevaluator.step()
 
         # Return loss
-        return loss_dict_ffhevaluator
-
-    def update_ffhgenerator(self, data):
-        """ Receives a dict with all the input data to the ffhgenerator, sets the model input and runs one complete update step.
-        """
-        # Make sure net is in train mode
-        self.DexGANGrasp.train()
-
-        # Run forward pass of ffhgenerator and reconstruct the data
-        data_rec = self.DexGANGrasp(data)
-
-        # Compute loss based on reconstructed data
-        total_loss_ffhgenerator, loss_dict_ffhgenerator = self.compute_loss_ffhgenerator(data_rec)
-
-        # Zero gradients, backprop new loss gradient, run one step
-        self.optim_ffhgenerator.zero_grad()
-        total_loss_ffhgenerator.backward()
-        self.optim_ffhgenerator.step()
-
-        # Return the loss
-        return loss_dict_ffhgenerator
+        return loss_dict_dexevaluator
     
-    def update_ffhgan(self, real_data, is_train_gen = True):
-        """ Receives a dict with all the input data to the ffhgenerator, sets the model input and runs one complete update step.
+    def update_dexgangrasp(self, real_data, is_train_gen = True):
+        """ Receives a dict with all the input data to the dexgenerator, sets the model input and runs one complete update step.
         """
         # Loss selection:
         is_wgan = self.is_wgan
-        disc_loss = self.compute_loss_ffhgan_discriminator_wass if is_wgan else self.compute_loss_ffhgan_discriminator
-        gen_loss = self.compute_loss_ffhgan_generator_wass if is_wgan else self.compute_loss_ffhgan_generator
+        disc_loss = self.compute_loss_dexgangrasp_discriminator_wass if is_wgan else self.compute_loss_dexgangrasp_discriminator
+        gen_loss = self.compute_loss_dexgangrasp_generator_wass if is_wgan else self.compute_loss_dexgangrasp_generator
         
         # Make sure net is in train mode
         self.DexGANGrasp.train()
@@ -831,7 +768,7 @@ class DexGanGrasp(object):
         #### Train Discriminator ####
         n_samples = real_data["bps_object"].shape[0]
         Zgen = torch.randn((n_samples, self.DexGANGrasp.latentD), dtype=self.DexGANGrasp.dtype, device=self.DexGANGrasp.device)
-        # Run forward pass of ffhgenerator and reconstruct the data
+        # Run forward pass of dexgenerator and reconstruct the data
         y_fake = self.DexGANGrasp.generator(Zgen, real_data["bps_object"].to(self.DexGANGrasp.device))
         fake_rot_6D = y_fake["rot_6D"]
         fake_transl = y_fake["transl"]
@@ -852,9 +789,9 @@ class DexGanGrasp(object):
         fake_score = self.DexGANGrasp.discriminator(fake_data_disc)
         # fake_score = self.DexGANGrasp.discriminator(fake_data)
         total_loss_disc, loss_dict_disc = disc_loss(real_score, fake_score, real_data, fake_data_disc)
-        self.optim_ffhgan_discriminator.zero_grad()
+        self.optim_dexgangrasp_discriminator.zero_grad()
         total_loss_disc.backward()
-        self.optim_ffhgan_discriminator.step()
+        self.optim_dexgangrasp_discriminator.step()
 
         #### Train Generator ####
         if is_train_gen:
@@ -874,9 +811,9 @@ class DexGanGrasp(object):
             total_loss_gen, loss_dict_gen = gen_loss(real_data, fake_data, fake_score_gen)
 
             # Zero gradients, backprop new loss gradient, run one step
-            self.optim_ffhgan_generator.zero_grad()
+            self.optim_dexgangrasp_generator.zero_grad()
             total_loss_gen.backward()
-            self.optim_ffhgan_generator.step()
+            self.optim_dexgangrasp_generator.step()
         else:
             loss_dict_gen = self.last_loss_dict_gen
         # Return the loss
