@@ -3,7 +3,6 @@ from __future__ import division
 import os
 import argparse
 import time
-import cv2
 import open3d as o3d
 import transforms3d.quaternions as quat
 import torch

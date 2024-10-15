@@ -8,7 +8,6 @@ import time
 import logging
 import open3d as o3d
 import copy
-import cv2
 import torch
 import argparse
 from DexGanGrasp.config.config import Config

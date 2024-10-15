@@ -1,122 +1,92 @@
-# Multi-Fingered Net
-Mirrored from https://github.com/qianbot/FFHNet-dev \
-Based on: FFHNet (ICRA 2022 [Paper](https://ieeexplore.ieee.org/document/9811666)) is an ML model which can generate a wide variety of high-quality multi-fingered grasps for unseen objects from a single view.
+# DexGANGrasp: Dexterous Generative Adversarial Grasping Synthesis for Task-Oriented Manipulation
+[[paper](https://arxiv.org/pdf/2407.17348)] [[video](https://youtu.be/egQaemeAy5k)] [[arXiv](https://arxiv.org/abs/2407.17348)] [[project site](https://david-s-martinez.github.io/DexGANGrasp.io/)] [[dataset](https://syncandshare.lrz.de/getlink/fiDFvyFKo4bwn4dXVwAVq5/)]
 
-Generating and evaluating grasps with FFHNet takes only 30ms on a commodity GPU. To the best of our knowledge, FFHNet is the first ML-based real-time system for multi-fingered grasping with the ability to perform grasp inference at 30 frames per second (FPS).
+Qian Feng*, David S. Martinez Lema*, Mohammadhossein Malmir, Hang Li, Jianxiang Feng, Zhaopeng Chen, Alois Knoll
 
-For training, we synthetically generate 180k grasp samples for 129 objects. We are able to achieve 91% grasping success for unknown objects in simulation and we demonstrate the model's capabilities of synthesizing high-quality grasps also for real unseen objects.
+*: Equal Contribution
 
-![](docs/images/pipeline.png)
+We introduce DexGANGrasp, a dexterous grasping synthesis method that generates and evaluates grasps with single view in real time. DexGanGrasp comprises a Conditional Generative Adversarial Networks (cGANs)-based DexGenerator to generate dexterous grasps and a discriminator-like DexEvalautor to assess the stability of these grasps. Extensive simulation and real-world expriments showcases the effectiveness of our proposed method, outperforming the baseline FFHNet with an 18.57% higher success rate in real-world evaluation.
+
+![](docs/images/dexgan.png)
+
+
+We further extend DexGanGrasp to DexAfford-Prompt, an openvocabulary affordance grounding pipeline for dexterous grasping leveraging Multimodal Large Language Models (MLLMs) and Vision Language Models (VLMs), to achieve task-oriented grasping with successful real-world deployments.
+
+![](docs/images/dexafford.png)
+
 
 ## Installation
 
-After you clone the repo. Use git lfs to download the model.
-
+Clone this repo recursively via:
 ```
-git lfs pull
+git clone --recursive 
 ```
 
-Create a new conda environment with cudatoolkit 10.1
+Create a new conda environment with cudatoolkit 11.8
 
 ```
 conda create -n myenv python==3.8
-conda install -c anaconda cudatoolkit=10.1
+conda install -c anaconda cudatoolkit=11.8
 ```
 
-Install all dependencies.
+Install all the dependencies for DexGanGrasp:
 
 ```
-pip install -r requirements.txt
+pip install torch==2.0.0 torchvision==0.15.1 torchaudio==2.0.1 --index-url https://download.pytorch.org/whl/cu118
+
+export MAX_JOBS=4 && pip install --no-cache-dir "git+https://github.com/facebookresearch/pytorch3d.git@stable" --user
+
 pip install git+https://github.com/otaheri/chamfer_distance
+
 pip install git+https://github.com/otaheri/bps_torch
+
+pip install -r requirements.txt
 ```
-
-## Grasp Data Preparation
-
-This section details the step to bring the grasping data into the right format.
-
-1. Collect all ground truth data into one directory with folders for each recording.
-
-```bash
-    Data
-      ├── 2021-03-02
-      |         ├── grasp_data (folder with images of grasp)
-      |         ├── grasp_data.h5 (file with all the poses)
-      ...
-      ├── 2021-03-10
+Install all dependencies for VLPart.
 ```
+git clone https://github.com/facebookresearch/detectron2.git
+cd detectron2
+pip install -e .
+cd ..
 
-2. Execute the script `grasp_pipeline/src/grasp_pipeline/grasp_data_processing/merge_raw_grasp_data.py` \
-This will go through all the folders under dataset folder and combine all `grasp_data.h5` files into one combined h5 file called `grasp_data_all.h5` (old name is `ffhnet-grasp.h5`).
-
-3. Execute the script `grasp_pipeline/src/grasp_pipeline/grasp_data_processing/data_augmentation.py` (`data_augmentation_multi_obj.py` for multiple objects scenes)
-This will go through all the objects in `grasp_data_all.h5` and spawn each object in `n_pcds_per_object` random positions and orientations, record a segmented point cloud observation as well as the transformation between the mesh frame of the object and the object centroid frame. All transforms get stored in `pcd_transforms.h5`.
-
-3.1 Add train/test/eval split manually.
-The script also creates `metadata.csv` which contains the columns \
-object_name | collision | negative | positive | train | test | val \
-An `X` in train/test/val indicates that this object belongs to the training, test or val set.
-A `XXX` indicates that the object should be excluded, because the data acquisition was invalid.
-
-4. Execute the script `FFHNet-dev/scripts/train_test_val_split.py` which given the `metadata.csv` file splits the data in the three folders `train`, `test`, `val`. Under each of the three folders lies a folder `point_clouds` with N `.pcd` files of objects from different angles.
-The split rules follow the
-5. Execute the script `bps_torch/convert_pcds_to_bps.py` in repo `https://github.com/qianbot/bps-torch.git` which will first compute a BPS (basis point set) and then computes the bps representation for each object storing them in a folder `bps` under the respective object name.
-
-6. rename `point_cloud` to `pcd` besides `bps` folder for dataloader visualization.
-
-If you train a model with direct point cloud:
-- run `scripts/save_pcd_center.py` to generate object center
-
-- If obstacle pcd/bps is needed, run script `/scripts/get_obstacle_pcd.py`
-
-- if need to down sample the point cloud, run script `/script/downsample_dataset.py`
-
+git clone https://github.com/david-s-martinez/vlpart.git
+cd VLPart
+pip install -r requirements.txt
+```
 ## To run the train script
-
-### Train DexEvaluator
-
-
-Modify the `config.yaml` with correct path.
-```
-python train.py --config models/ffhgenerator/config.yaml
-```
 
 ### Train DexGenerator
 
-Modify the `config.yaml` with correct path.
 ```
-python train.py --config models/ffhgenerator/config.yaml
+python3 train.py
 ```
 
 ## To run the evaluation script
 
-### Evaluate the DexEvaluator
+### Evaluate the DexGenerator with Mean Absolute Grasp Deviation (MAGD)
 ```
-python eval.py
+python3 eval.py
 ```
+## To run the inference scripts
 
-| Data distribution from DexGenerator  | Filter grasps with 0.5 thresh | Filter grasps with 0.75 thresh
-| --------------------------------------- | --------------------------------------- |--------------------------------------- |
-| ![](docs/images/ffhgen.png)       | ![](docs/images/filter.png) | ![](docs/images/filter2.png) |
-
-| Filter grasps with 0.9 thresh  | Best grasp |
-| --------------------------------------- | --------------------------------------- |
-| ![](docs/images/filter_last.png)       | ![](docs/images/best_grasp.png) |  |
-
+### Run DexGANGrasp offline on real data (without robot)
+```
+python3 dexgangrasp_offline.py
+```
+### Visualize DexAfford Prompt offline (without robot and API key)
+```
+python3 dexafford_prompt_offline.py
+```
 ## Citation
 
 ```plain
-@INPROCEEDINGS{2022ffhnet,
-  author={Mayer, Vincent and Feng, Qian and Deng, Jun and Shi, Yunlei and Chen, Zhaopeng and Knoll, Alois},
-  booktitle={2022 International Conference on Robotics and Automation (ICRA)},
-  title={FFHNet: Generating Multi-Fingered Robotic Grasps for Unknown Objects in Real-time},
-  year={2022},
-  volume={},
-  number={},
-  pages={762-769},
-  doi={10.1109/ICRA46639.2022.9811666}}
+@misc{feng2024dexgangraspdexterousgenerativeadversarial,
+title={DexGANGrasp: Dexterous Generative Adversarial Grasping Synthesis for Task-Oriented Manipulation}, 
+author={Qian Feng and David S. Martinez Lema and Mohammadhossein Malmir and Hang Li and Jianxiang Feng and Zhaopeng Chen and Alois Knoll},
+year={2024},
+eprint={2407.17348},
+archivePrefix={arXiv},
+primaryClass={cs.RO},
+url={https://arxiv.org/abs/2407.17348}, 
+}
 ```
-
-## Acknowledgement
-
-[bps_torch](https://github.com/otaheri/bps_torch)
