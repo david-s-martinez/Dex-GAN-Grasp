@@ -21,9 +21,29 @@ import csv
 ROOT_PATH = os.path.dirname(os.path.abspath(__file__))
 
 def save_batch_to_file(batch):
+    """
+    Saves the given batch of data to a file in PyTorch's `.pth` format.
+    
+    Args:
+        batch (torch.Tensor or any serializable object): The data batch to be saved.
+
+    The batch is saved to the file "data/eval_batch.pth".
+    """
     torch.save(batch, "data/eval_batch.pth")
 
+
 def load_batch(path):
+    """
+    Loads a batch of data from a file in PyTorch's `.pth` format.
+
+    Args:
+        path (str): The path to the file from which to load the data.
+
+    Returns:
+        torch.Tensor or any deserialized object: The data loaded from the file.
+        
+    The data is loaded to the GPU device `cuda:0`.
+    """
     return torch.load(path, map_location="cuda:0")
 
 def full_joint_conf_from_vae_joint_conf(vae_joint_conf):
@@ -85,6 +105,15 @@ def euclidean_distance_points_pairwise_np(pt1, pt2):
 
 
 def euclidean_distance_joint_conf_pairwise_np(joint1, joint2):
+    """_summary_
+
+    Args:
+        joint1 (_type_): [N, num_joint] numpy array, predicted grasp joint config
+        joint2 (_type_): [M, num_joint] numpy array, ground truth grasp joint config
+
+    Returns:
+        dist_mat _type_: [N,M]
+    """
     dist_mat = np.zeros((joint1.shape[0],joint2.shape[0]))
     for idx in range(joint1.shape[0]):
         deltas = joint2 - joint1[idx]
@@ -92,7 +121,7 @@ def euclidean_distance_joint_conf_pairwise_np(joint1, joint2):
         dist_mat[idx] = dist_2
     return dist_mat
 
-def maad_for_grasp_distribution(grasp1, grasp2):
+def magd_for_grasp_distribution(grasp1, grasp2):
     """_summary_
 
     Args:
@@ -112,18 +141,7 @@ def maad_for_grasp_distribution(grasp1, grasp2):
     # calculate distance matrix
     transl_dist_mat = euclidean_distance_points_pairwise_np(grasp1['transl'], grasp2['transl'])
     rot_dist_mat = geodesic_distance_rotmats_pairwise_np(grasp1['rot_matrix'], grasp2['rot_matrix'])
-
-    # Adapt format of joint conf from 15 dim to 20 dim and numpy array
-    grasp2_joint_conf = grasp2['joint_conf']
-    # grasp2_joint_conf = np.zeros((len(grasp2['joint_conf']),20))
-    # for idx in range(len(grasp2['joint_conf'])):
-    #     grasp2_joint_conf[idx] = grasp2['joint_conf'][idx]
-    # pred_joint_conf_full = np.zeros((grasp1['pred_joint_conf'].shape[0], 20))
-    # for idx in range(grasp1['pred_joint_conf'].shape[0]):
-    #     pred_joint_conf_full[idx] = full_joint_conf_from_vae_joint_conf(grasp1['pred_joint_conf'][idx])
-    # grasp1['pred_joint_conf'] = pred_joint_conf_full
-
-    joint_dist_mat = euclidean_distance_joint_conf_pairwise_np(grasp1['joint_conf'], grasp2_joint_conf)
+    joint_dist_mat = euclidean_distance_joint_conf_pairwise_np(grasp1['joint_conf'], grasp2['joint_conf'])
 
     transl_loss = np.min(transl_dist_mat, axis=1)  # [N,1]
     rot_loss = np.zeros_like(transl_loss)
@@ -143,7 +161,31 @@ def maad_for_grasp_distribution(grasp1, grasp2):
 
     return np.sum(transl_loss), np.sum(rot_loss), np.sum(joint_loss), coverage
 
-def filter(dexgangrasp, obj_pcd_path, obj_bps, grasps, n_samples, is_discriminator = False, thresh_succ_list = [0.5, 0.75, 0.90], visualize = False):
+def filter(dexgangrasp, obj_pcd_path, obj_bps, grasps, n_samples, is_discriminator=False, thresh_succ_list=[0.5, 0.75, 0.90], visualize=False):
+    """
+    Filters grasps based on success probabilities in multiple stages and optionally visualizes the filtering process.
+
+    Args:
+        dexgangrasp: grasp generation model
+        obj_pcd_path (str): The file path to the object's point cloud data.
+        obj_bps (object): Object's Basis Point Set (BPS).
+        grasps (dict): A dictionary containing grasp configurations.
+        n_samples (int): Total number of grasp samples to evaluate.
+        is_discriminator (bool, optional): Whether to use a discriminator-based filtering method. Defaults to False.
+        thresh_succ_list (list, optional): A list of thresholds for filtering grasps at different stages. Defaults to [0.5, 0.75, 0.90].
+        visualize (bool, optional): Whether to visualize the grasp distributions at each filtering stage. Defaults to False.
+
+    Returns:
+        tuple: 
+            - filtered_grasps_2 (dict): The final set of filtered grasps after all stages.
+            - n_grasps_filt_2 (int): The number of grasps passing the final stage of filtering.
+
+    Process:
+        - The function filters the grasps in three stages, progressively applying stricter thresholds from `thresh_succ_list`.
+        - At each stage, the number of grasps that pass the filtering is printed, and the percentage of remaining grasps relative to the total samples is computed.
+        - If `visualize` is True, the filtered grasp distributions are visualized after each stage using the point cloud data.
+    """
+    
     if visualize:
         visualization.show_generated_grasp_distribution(obj_pcd_path, grasps)
 
@@ -184,7 +226,7 @@ def filter(dexgangrasp, obj_pcd_path, obj_bps, grasps, n_samples, is_discriminat
     print("n_grasps after filtering: %d" % n_grasps_filt_2)
     print("This means %.2f of grasps pass the filtering" % (n_grasps_filt_2 / n_samples))
 
-    return filtered_grasps_2 , n_grasps_filt_2
+    return filtered_grasps_2, n_grasps_filt_2
 
 def poses_to_transforms(pose_vectors):
     """
@@ -222,20 +264,38 @@ def main(
     load_epoch_gen,
     load_path_eva,
     load_path_gen,
-    is_gan = True,
     show_individual_grasps=False,
     is_discriminator = False,
-    is_filter = True,
-    z_offset = 0.0
+    is_filter = False
     ):
+    """
+    Main function to run the Mean Absolute Grasp Deviation (MAGD) metric.
+
+    Args:
+        config_path (str): Path to the configuration file.
+        load_epoch_eva (int): Epoch number for loading the grasp evaluator model.
+        load_epoch_gen (int): Epoch number for loading the grasp generator model.
+        load_path_eva (str): File path to load the evaluator model weights.
+        load_path_gen (str): File path to load the generator model weights.
+        show_individual_grasps (bool, optional): Whether to visualize individual grasps during the process. Defaults to False.
+        is_discriminator (bool, optional): Whether to apply discriminator-based filtering of grasps. Defaults to False.
+        is_filter (bool, optional): Whether to filter generated grasps. Defaults to False.
+
+    Returns:
+        tuple:
+            - transl_loss_sum (float): Sum of the translation losses for all grasps.
+            - rot_loss_sum (float): Sum of the rotation losses for all grasps.
+            - joint_loss_sum (float): Sum of the joint configuration losses for all grasps.
+            - coverage_mean (float): Mean coverage of the grasps.
+    """
+
 
     config = Config(config_path)
     cfg = config.parse()
 
     model = DexGanGrasp(cfg)
 
-    if is_discriminator and is_gan:
-
+    if is_discriminator:
         thresh_succ_list=[0.15, 0.175, 0.20]
     else:
         thresh_succ_list=[0.5, 0.75, 0.90]
@@ -244,8 +304,8 @@ def main(
     
     base_data_bath = os.path.join(ROOT_PATH,'data','real_objects')
     model.load_dexgenerator(epoch=load_epoch_gen, load_path=load_path_gen)
-    
     model.load_dexevaluator(epoch=load_epoch_eva, load_path=load_path_eva)
+
     dset_gen = DexGeneratorDataSet(cfg, eval=True)
     train_loader_gen = DataLoader(dset_gen,
                                     batch_size=64,
@@ -292,7 +352,7 @@ def main(
                                         pcd_path, 
                                         batch['bps_object'][idx].cpu().data.numpy(), out, 
                                         grasps_gt['joint_conf'].shape[0], 
-                                        is_discriminator = is_discriminator and is_gan, 
+                                        is_discriminator = is_discriminator, 
                                         thresh_succ_list = thresh_succ_list,
                                         visualize = show_individual_grasps
                                         )
@@ -300,14 +360,13 @@ def main(
             out = model.generate_grasps(
                 batch['bps_object'][idx].cpu().data.numpy(), 
                 n_samples=grasps_gt['joint_conf'].shape[0], 
-                return_arr=True,
-                z_offset=z_offset
+                return_arr=True
                 )
 
         if show_individual_grasps:
             visualization.show_generated_grasp_distribution(pcd_path, out)
             
-        transl_loss, rot_loss, joint_loss, coverage = maad_for_grasp_distribution(out, grasps_gt)
+        transl_loss, rot_loss, joint_loss, coverage = magd_for_grasp_distribution(out, grasps_gt)
         if not math.isnan(transl_loss) and not math.isnan(rot_loss) and not math.isnan(joint_loss):
             transl_loss_sum += transl_loss
             rot_loss_sum += rot_loss
@@ -335,74 +394,58 @@ def main(
     return transl_loss_sum, rot_loss_sum, joint_loss_sum, coverage_mean
 
 if __name__ == '__main__':
-    if True:
-        torch.multiprocessing.set_start_method('spawn')
-        parser = argparse.ArgumentParser()
-        z_offset = 0.0
-        # # Best GAN so far:
-        # gen_path = "checkpoints/ffhgan/2024-03-10T17_31_55_ffhgan_lr_0.0001_bs_1000"
-        # best_epoch = 45
-        # z_offset = 0.025
-
-        # Experiment checkpoint:
-
-        gen_path = "checkpoints/ffhgan/2024-03-10T17_31_55_ffhgan_lr_0.0001_bs_1000"
-        best_epoch = 32
-        z_offset = 0.025
-
-        # gen_path = "checkpoints/ffhgan/2024-05-22T10_39_50_ffhgan_wass_lr_0.0001_bs_1000_genfakeloss_0.5"
-        # best_epoch = 51
-        # z_offset = 0.09
-        # gen_path = "checkpoints/ffhgan/2024-03-10T17_31_55_ffhgan_lr_0.0001_bs_1000"
-        # best_epoch = 37 #higher coverage
-        # z_offset = 0.0286
-
-        # gen_path = "checkpoints/ffhgan/2024-03-15T15_20_19_ffhgan_lr_0.0001_bs_1000"
-        # best_epoch = 63
-        # z_offset = 0.025
         
-        is_discriminator = True
-        is_filter = False
+    torch.multiprocessing.set_start_method('spawn')
+    parser = argparse.ArgumentParser()
+    gen_path = "checkpoints/ffhgan/2024-03-10T17_31_55_ffhgan_lr_0.0001_bs_1000"
+    best_epoch = 32
+    is_discriminator = False
+    is_filter = False
 
-        parser.add_argument('--gen_path', default=gen_path, help='path to DexGenerator model')
-        parser.add_argument('--load_gen_epoch', type=int, default=best_epoch, help='epoch of DexGenerator model')
+    parser.add_argument('--gen_path', default=gen_path, help='path to DexGenerator model')
+    parser.add_argument('--load_gen_epoch', type=int, default=best_epoch, help='epoch of DexGenerator model')
+    parser.add_argument('--eva_path', default='checkpoints/ffhevaluator/2024-06-23_ffhevaluator', help='path to DexEvaluator model')
+    parser.add_argument('--load_eva_epoch', type=int, default=30, help='epoch of DexEvaluator model')
+    parser.add_argument('--config', type=str, default='DexGanGrasp/config/config_dexgangrasp.yaml')
 
-        # parser.add_argument('--eva_path', default='models/ffhevaluator', help='path to DexEvaluator model')
-        parser.add_argument('--eva_path', default='checkpoints/ffhevaluator/2024-06-23_ffhevaluator', help='path to DexEvaluator model')
-        parser.add_argument('--load_eva_epoch', type=int, default=30, help='epoch of DexEvaluator model')
-        parser.add_argument('--config', type=str, default='DexGanGrasp/config/config_dexgangrasp.yaml')
+    args = parser.parse_args()
 
-        args = parser.parse_args()
+    load_path_gen = args.gen_path
+    load_path_eva = args.eva_path
+    load_epoch_gen = args.load_gen_epoch
+    load_epoch_eva = args.load_eva_epoch
+    config_path = args.config
 
-        load_path_gen = args.gen_path
-        load_path_eva = args.eva_path
-        load_epoch_gen = args.load_gen_epoch
-        load_epoch_eva = args.load_eva_epoch
-        config_path = args.config
-        
-        if 'ffhgan' in gen_path:
-            is_gan = True
-        else:
-            is_gan = False
-
+    if load_epoch_gen > 0:
+        # Compute the metrics for a single epoch
         main(
         config_path,    
         load_epoch_eva,
         load_epoch_gen,
         load_path_eva,
         load_path_gen,
-        is_gan = is_gan, 
-        show_individual_grasps = True, 
+        show_individual_grasps = False, 
         is_discriminator=is_discriminator,
-        is_filter=is_filter,
-        z_offset = z_offset
+        is_filter=is_filter
         )
-        
-        # with open(load_path_gen + '_metrics.csv', 'w') as file:
-        #     writer = csv.writer(file)
-        #     writer.writerow(["epoch", "transl_loss_sum", "rot_loss_sum", "joint_loss_sum", "coverage_mean"])
-        #     for epoch in range(3,93,3):
-        #         print('Evaluating epoch:',epoch)
-        #         load_epoch_gen = epoch
-        #         transl_loss_sum, rot_loss_sum, joint_loss_sum, coverage_mean = main(config_path, load_epoch_gen, load_path_gen, is_gan = is_gan, show_individual_grasps = False)
-        #         writer.writerow([epoch, transl_loss_sum, rot_loss_sum, joint_loss_sum, coverage_mean])
+    else:
+        # Compute the metrics for all available epochs
+        save_freq = 3
+        num_epochs = 90
+        with open(load_path_gen + '_metrics.csv', 'w') as file:
+            writer = csv.writer(file)
+            writer.writerow(["epoch", "transl_loss_sum", "rot_loss_sum", "joint_loss_sum", "coverage_mean"])
+            for epoch in range(save_freq, num_epochs, save_freq):
+                print('Evaluating epoch:',epoch)
+                load_epoch_gen = epoch
+                transl_loss_sum, rot_loss_sum, joint_loss_sum, coverage_mean = main(
+                                                                            config_path,    
+                                                                            load_epoch_eva,
+                                                                            load_epoch_gen,
+                                                                            load_path_eva,
+                                                                            load_path_gen,
+                                                                            show_individual_grasps = False, 
+                                                                            is_discriminator=is_discriminator,
+                                                                            is_filter=is_filter
+                                                                            )
+                writer.writerow([epoch, transl_loss_sum, rot_loss_sum, joint_loss_sum, coverage_mean])
