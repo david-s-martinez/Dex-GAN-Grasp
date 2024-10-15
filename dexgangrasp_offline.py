@@ -24,7 +24,34 @@ parser.add_argument('--config', help='Path to template image.',
                     default='DexGanGrasp/config/config_ffhnet_vm_debug.yaml')
 args = parser.parse_args()
 
-def filter(dexgangrasp, obj_pcd_path, obj_bps, grasps, n_samples, is_discriminator = False, thresh_succ_list = [0.5, 0.75, 0.90] ):
+def filter(dexgangrasp, obj_pcd_path, obj_bps, grasps, n_samples, is_discriminator=False, thresh_succ_list=[0.5, 0.75, 0.90], visualize=True):
+    """
+    Filters grasps based on success probabilities in multiple stages and optionally visualizes the filtering process.
+
+    Args:
+        dexgangrasp: grasp generation model
+        obj_pcd_path (str): The file path to the object's point cloud data.
+        obj_bps (object): Object's Basis Point Set (BPS).
+        grasps (dict): A dictionary containing grasp configurations.
+        n_samples (int): Total number of grasp samples to evaluate.
+        is_discriminator (bool, optional): Whether to use a discriminator-based filtering method. Defaults to False.
+        thresh_succ_list (list, optional): A list of thresholds for filtering grasps at different stages. Defaults to [0.5, 0.75, 0.90].
+        visualize (bool, optional): Whether to visualize the grasp distributions at each filtering stage. Defaults to False.
+
+    Returns:
+        tuple: 
+            - filtered_grasps_2 (dict): The final set of filtered grasps after all stages.
+            - n_grasps_filt_2 (int): The number of grasps passing the final stage of filtering.
+
+    Process:
+        - The function filters the grasps in three stages, progressively applying stricter thresholds from `thresh_succ_list`.
+        - At each stage, the number of grasps that pass the filtering is printed, and the percentage of remaining grasps relative to the total samples is computed.
+        - If `visualize` is True, the filtered grasp distributions are visualized after each stage using the point cloud data.
+    """
+    
+    if visualize:
+        visualization.show_generated_grasp_distribution(obj_pcd_path, grasps)
+
     if is_discriminator:
         filter_func = dexgangrasp.filter_grasps_discriminator
     else:
@@ -39,7 +66,8 @@ def filter(dexgangrasp, obj_pcd_path, obj_bps, grasps, n_samples, is_discriminat
     print("This means %.2f of grasps pass the filtering" % (n_grasps_filt / n_samples))
 
     # Visulize filtered distribution
-    visualization.show_generated_grasp_distribution(obj_pcd_path, filtered_grasps)
+    if visualize:
+        visualization.show_generated_grasp_distribution(obj_pcd_path, filtered_grasps)
 
     ############### Stage 2 ################
     # Reject grasps with low probability
@@ -50,7 +78,8 @@ def filter(dexgangrasp, obj_pcd_path, obj_bps, grasps, n_samples, is_discriminat
     print("This means %.2f of grasps pass the filtering" % (n_grasps_filt_1 / n_samples))
 
     # Visulize filtered distribution
-    visualization.show_generated_grasp_distribution(obj_pcd_path, filtered_grasps_1)
+    if visualize:
+        visualization.show_generated_grasp_distribution(obj_pcd_path, filtered_grasps_1)
 
     ############## Stage 3 ################
     # Reject grasps with low probability
@@ -60,7 +89,7 @@ def filter(dexgangrasp, obj_pcd_path, obj_bps, grasps, n_samples, is_discriminat
     print("n_grasps after filtering: %d" % n_grasps_filt_2)
     print("This means %.2f of grasps pass the filtering" % (n_grasps_filt_2 / n_samples))
 
-    return filtered_grasps_2 , n_grasps_filt_2
+    return filtered_grasps_2, n_grasps_filt_2
     
 def eval_dexgangrasp_sampling_and_filtering_real(config_path,
                                             load_epoch_eva,
@@ -72,6 +101,32 @@ def eval_dexgangrasp_sampling_and_filtering_real(config_path,
                                             show_individual_grasps=False,
                                             thresh_succ_list = [0.5, 0.75, 0.90],
                                             is_discriminator = False):
+    """
+    Evaluates grasp sampling and filtering on real object data using the DexGANGrasp model.
+
+    Process:
+        - Loads the configuration, generator, and evaluator models.
+        - Iterates over real object files, loading their BPS (Basis Point Set) representations and PCD (Point Cloud Data) files.
+        - Generates grasp samples for each object and visualizes the initial distribution.
+        - Applies filtering based on success thresholds and visualizes the filtered grasp distribution.
+        - Optionally visualizes individual filtered grasps and allows user interaction for controlling visualization.
+
+    Args:
+        config_path (str): Path to the configuration file.
+        load_epoch_eva (int): Epoch number to load the evaluator model.
+        load_epoch_gen (int): Epoch number to load the generator model.
+        load_path_eva (str): Path to load the evaluator model weights.
+        load_path_gen (str): Path to load the generator model weights.
+        n_samples (int): Number of grasp samples to generate. Default is 1000.
+        thresh_succ (float): Success threshold for filtering grasps. Default is 0.5.
+        show_individual_grasps (bool): If True, displays each individual grasp. Default is False.
+        thresh_succ_list (list): List of success thresholds for multi-stage filtering. Default is [0.5, 0.75, 0.90].
+        is_discriminator (bool): If True, uses discriminator-based filtering. Default is False.
+
+    Returns:
+        None
+    """
+
     config = Config(config_path)
     cfg = config.parse()
     dexgangrasp = DexGanGrasp(cfg)
@@ -126,127 +181,35 @@ def eval_dexgangrasp_sampling_and_filtering_real(config_path,
                 a = input('Break loop? (y/n): ')
                 if a == 'y':
                     break
-def train():
-    parser = argparse.ArgumentParser(
-    formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--config', help='Path to template image.',
-                        default='DexGanGrasp/config/config_dexgangrasp.yaml')
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    gen_path = "checkpoints/ffhgan/2024-03-10T17_31_55_ffhgan_lr_0.0001_bs_1000"
+    best_epoch = 32
+    is_discriminator = False
+    thresh_succ_list = [0.5, 0.75, 0.90]
+
+    parser.add_argument('--gen_path', default=gen_path, help='path to DexGenerator model')
+    parser.add_argument('--load_gen_epoch', type=int, default=best_epoch, help='epoch of DexGenerator model')
+    # New evaluator:checkpoints/ffhevaluator/2024-06-23_ffhevaluator
+    parser.add_argument('--eva_path', default='checkpoints/ffhevaluator/2024-06-23_ffhevaluator', help='path to DexEvaluator model')
+    parser.add_argument('--load_eva_epoch', type=int, default=30, help='epoch of DexEvaluator model')
+    parser.add_argument('--config', type=str, default='DexGanGrasp/config/config_dexgangrasp.yaml')
+
     args = parser.parse_args()
 
-    # load configuration params
-    config = Config(args.config)
-    cfg = config.parse()
+    load_path_gen = args.gen_path
+    load_path_eva = args.eva_path
+    load_epoch_gen = args.load_gen_epoch
+    load_epoch_eva = args.load_eva_epoch
+    config_path = args.config
 
-    # start cuda multiprocessing
-    # TODO: discover the problem of cpu usage
-    torch.multiprocessing.set_start_method('spawn')
-
-    # Data for gen and eval and col is different. Gen sees only positive examples
-    if cfg["train_ffhevaluator"]:
-        if cfg["model"] == "ffhnet":
-            dset_eva = DexEvaluatorDataSet(cfg,eval=False)
-        elif cfg["model"] == "pointnet":
-            dset_eva = DexEvaluatorPCDDataSet(cfg,eval=False)
-        train_loader_eva = DataLoader(dset_eva,
-                                      batch_size=cfg["batch_size"],
-                                      shuffle=True,
-                                      drop_last=True,
-                                      num_workers=cfg["num_threads"])
-
-    if cfg["train_ffhgenerator"]:
-        dset_gen = DexGeneratorDataSet(cfg)
-        train_loader_gen = DataLoader(dset_gen,
-                                      batch_size=cfg["batch_size"],
-                                      shuffle=True,
-                                      drop_last=True,
-                                      num_workers=cfg["num_threads"])
-
-    writer = Writer(cfg)
-
-    dexgangrasp = DexGanGrasp(cfg)
-    # if cfg["continue_train"]:
-    #     if cfg["train_ffhevaluator"]:
-    #         dexgangrasp.load_ffhevaluator(cfg["load_epoch"])
-    #     if cfg["train_ffhgenerator"]:
-    #         dexgangrasp.load_dexgenerator(cfg["load_epoch"])
-    #     start_epoch = cfg["load_epoch"] + 1
-    # else:
-    #     start_epoch = 1
-    start_epoch = 1
-    total_steps = 0
-    epoch_start = time.time()
-
-    for epoch in range(start_epoch, cfg["num_epochs"] + 1):
-        # === Generator ===
-        
-        # Initialize epoch / iter info
-        prev_iter_end = time.time()
-        epoch_iter = 0
-
-        for i, data in enumerate(train_loader_gen):
-            # Update iter and total info
-            cur_iter_start = time.time()
-            total_steps += cfg["batch_size"]
-            epoch_iter += cfg["batch_size"]
-
-            # Measure time for data loading
-            if total_steps % cfg["print_freq"] == 0:
-                t_load_data = cur_iter_start - prev_iter_end
-
-            # Update model one step, get losses
-            loss_dict = dexgangrasp.update_dexgangrasp(data)
-
-            # Log loss
-            if total_steps % cfg["print_freq"] == 0:
-                t_load = cur_iter_start - prev_iter_end  # time for data loading
-                t_total = (time.time() - cur_iter_start) // 60
-                # TODO: implement writer.
-                # writer.print_current_train_loss(epoch, epoch_iter, loss_dict, t_total, t_load)
-                # writer.plot_train_loss(loss_dict, epoch, epoch_iter, len(dset_gen))
-
-            prev_iter_end = time.time()
-            # End of data loading generator
-if __name__ == '__main__':
-    if True:
-        parser = argparse.ArgumentParser()
-        # # Best VAE so far:
-        # gen_path = "checkpoints/ffhnet/2023-09-01T01_16_11_ffhnet_lr_0.0001_bs_1000"
-        # best_epoch = 24
-
-        # Best GAN so far:
-        # gen_path = "checkpoints/ffhgan/2024-03-15T15_20_19_ffhgan_lr_0.0001_bs_1000"
-        # best_epoch = 63
-        gen_path = "checkpoints/ffhgan/2024-03-10T17_31_55_ffhgan_lr_0.0001_bs_1000"
-        best_epoch = 32
-
-        # is_discriminator = True
-        # thresh_succ_list = [0.15, 0.20, 0.25]
-
-        is_discriminator = False
-        thresh_succ_list = [0.5, 0.75, 0.90]
-
-        parser.add_argument('--gen_path', default=gen_path, help='path to DexGenerator model')
-        parser.add_argument('--load_gen_epoch', type=int, default=best_epoch, help='epoch of DexGenerator model')
-        # New evaluator:checkpoints/ffhevaluator/2024-06-23_ffhevaluator
-        parser.add_argument('--eva_path', default='checkpoints/ffhevaluator/2024-06-23_ffhevaluator', help='path to DexEvaluator model')
-        parser.add_argument('--load_eva_epoch', type=int, default=30, help='epoch of DexEvaluator model')
-        parser.add_argument('--config', type=str, default='DexGanGrasp/config/config_dexgangrasp.yaml')
-
-        args = parser.parse_args()
-
-        load_path_gen = args.gen_path
-        load_path_eva = args.eva_path
-        load_epoch_gen = args.load_gen_epoch
-        load_epoch_eva = args.load_eva_epoch
-        config_path = args.config
-
-        eval_dexgangrasp_sampling_and_filtering_real(config_path, 
-                                                load_epoch_eva, 
-                                                load_epoch_gen, 
-                                                load_path_eva,
-                                                load_path_gen, 
-                                                show_individual_grasps= True, 
-                                                thresh_succ_list = thresh_succ_list, 
-                                                is_discriminator = is_discriminator
-                                                )
-    # train()
+    eval_dexgangrasp_sampling_and_filtering_real(config_path, 
+                                            load_epoch_eva, 
+                                            load_epoch_gen, 
+                                            load_path_eva,
+                                            load_path_gen, 
+                                            show_individual_grasps= True, 
+                                            thresh_succ_list = thresh_succ_list, 
+                                            is_discriminator = is_discriminator
+                                            )

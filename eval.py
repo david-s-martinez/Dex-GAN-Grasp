@@ -46,31 +46,6 @@ def load_batch(path):
     """
     return torch.load(path, map_location="cuda:0")
 
-def full_joint_conf_from_vae_joint_conf(vae_joint_conf):
-    """Takes in the 15 dimensional joint conf output from VAE and repeats the 3*N-th dimension to turn dim 15 into dim 20.
-
-    Args:
-        vae_joint_conf (np array): dim(vae_joint_conf.position) = 15
-
-    Returns:
-        full_joint_conf (JointState): Full joint state with dim(full_joint_conf.position) = 20
-    """
-    # for split to run we have to have even joint dim so 15->16
-    if vae_joint_conf.shape[0] == 16:
-        vae_joint_conf = vae_joint_conf[:15]
-    full_joint_pos = np.zeros(20)
-    ix_full_joint_pos = 0
-    for i in range(vae_joint_conf.shape[0]):
-        if (i + 1) % 3 == 0:
-            full_joint_pos[ix_full_joint_pos] = vae_joint_conf[i]
-            full_joint_pos[ix_full_joint_pos + 1] = vae_joint_conf[i]
-            ix_full_joint_pos += 2
-        else:
-            full_joint_pos[ix_full_joint_pos] = vae_joint_conf[i]
-            ix_full_joint_pos += 1
-
-    return full_joint_pos
-
 def geodesic_distance_rotmats_pairwise_np(r1s, r2s):
     """Computes pairwise geodesic distances between two sets of rotation matrices.
 
@@ -122,7 +97,8 @@ def euclidean_distance_joint_conf_pairwise_np(joint1, joint2):
     return dist_mat
 
 def magd_for_grasp_distribution(grasp1, grasp2):
-    """_summary_
+    """
+    Mean Absolute Grasp Deviation (MAGD).
 
     Args:
         grasp1 (dict): predicted grasp set

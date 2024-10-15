@@ -13,11 +13,42 @@ from DexGanGrasp.utils.writer import Writer
 from DexGanGrasp.models.dexgangrasp import DexGanGrasp
 
 def update_mean_losses(mean_losses, new_losses):
+    """
+    Updates the cumulative mean losses by adding new losses from the current batch.
+
+    Args:
+        mean_losses (dict): Dictionary containing the cumulative mean losses for different metrics (e.g., 'gen_loss_fake', 'transl_loss', etc.).
+        new_losses (dict): Dictionary containing the losses from the current batch.
+
+    Returns:
+        mean_losses (dict): Updated dictionary with cumulative losses after adding the new losses from the current batch.
+    """
     for key in mean_losses.keys():
         mean_losses[key] += new_losses[key].detach().cpu().numpy()
     return mean_losses
 
 def run_eval_gan_gen(dexgangrasp, cfg):
+    """
+    Runs evaluation for the DexGenerator model and computes average losses.
+
+    Process:
+        - Loads the evaluation dataset using the DexGeneratorDataSet with evaluation mode enabled.
+        - Iterates through the evaluation data using the dataloader.
+        - Computes various losses (generator fake loss, translation loss, rotation loss, confidence loss, total loss) for each batch.
+        - Averages the computed losses across all batches and logs progress periodically.
+
+    Args:
+        dexgangrasp: The DexGanGrasp object containing the generator model.
+        cfg (dict): Configuration dictionary with parameters such as batch size.
+
+    Returns:
+        mean_losses (dict): A dictionary containing:
+            - 'gen_loss_fake' (float): The average generator fake loss.
+            - 'transl_loss' (float): The average translation loss.
+            - 'rot_loss' (float): The average rotation loss.
+            - 'conf_loss' (float): The average confidence loss.
+            - 'total_loss_gen' (float): The average total generator loss.
+    """
     print('Running eval for DexGANGrasp Generator')
     dset = DexGeneratorDataSet(cfg, eval = True)
     eval_loader = DataLoader(dset, batch_size=cfg["batch_size"], shuffle=False)
@@ -42,6 +73,28 @@ def run_eval_gan_gen(dexgangrasp, cfg):
     return mean_losses
 
 def run_eval_eva(dexgangrasp, dataloader, curr_epoch, eval_dir):
+    """
+    Runs evaluation for the DexEvaluator model and computes average losses and accuracy.
+
+    Process:
+        - Iterates through the evaluation dataset using the provided dataloader.
+        - Computes the total evaluation loss and accuracy for positive and negative examples for each batch.
+        - Averages the computed metrics across all batches.
+        - Saves the predicted and ground truth labels for further analysis.
+
+    Args:
+        dexgangrasp: The DexGanGrasp object containing the DexEvaluator model.
+        dataloader: Dataloader object for loading evaluation data.
+        curr_epoch (int): The current epoch number, used for saving the evaluation results.
+        eval_dir (str): Directory to save the evaluation results, including predicted and ground truth labels.
+
+    Returns:
+        mean_losses (dict): A dictionary containing:
+            - 'total_loss_eva' (float): The average total evaluation loss.
+            - 'pos_acc' (float): The average accuracy for positive examples.
+            - 'neg_acc' (float): The average accuracy for negative examples.
+    """
+
     print('Running eval for DexEvaluator.')
 
     mean_losses = {
@@ -107,6 +160,26 @@ def run_eval_gan(cfg, curr_epoch, dexgangrasp=None, epoch=-1, name=""):
     return loss_dict
 
 def main():
+    """
+    Main function to train DexGANGrasp generator and evaluator models.
+
+    The function initializes argument parsing, loads configuration, and sets up data loaders for training both the grasp generator and evaluator models. It includes logging and saving mechanisms, and runs for a specified number of epochs.
+
+    Process:
+        - Loads configuration parameters from a YAML file.
+        - Initializes CUDA multiprocessing to handle parallel data loading.
+        - Trains the grasp evaluator and/or grasp generator based on configuration.
+        - Logs the training progress, including losses and model weights, after every epoch.
+        - Saves the model state at regular intervals.
+        - Optionally evaluates the models on a validation dataset and logs evaluation losses.
+
+    Args:
+        --config (str): Path to the configuration YAML file. Defaults to 'DexGanGrasp/config/config_dexgangrasp.yaml'.
+    
+    Returns:
+        None
+    """
+
     parser = argparse.ArgumentParser(
     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--config', help='Path to template image.',

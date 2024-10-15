@@ -12,6 +12,7 @@ from copy import deepcopy
 import trimesh
 
 BASE_PATH = '/home/qian.feng/FFHNet-dev'
+
 def show_grasp_and_object_given_pcd(pcd, centr_T_palm, joint_conf):
     """Visualize the grasp object and the hand relative to it. Here the pcd is already transformed to grasp center
 

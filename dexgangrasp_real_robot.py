@@ -16,49 +16,22 @@ import torch
 import argparse
 from DexGanGrasp.config.config import Config
 from DexGanGrasp.data.bps_encoder import BPSEncoder
-from DexGanGrasp.data.dexevaluator_data_set import (DexEvaluatorDataSet,
-                                               DexEvaluatorPCDDataSet)
-from DexGanGrasp.data.dexgenerator_data_set import DexGeneratorDataSet
 from DexGanGrasp.models.dexgangrasp import DexGanGrasp
-from DexGanGrasp.models.networks import DexGANGrasp
 from DexGanGrasp.utils import utils, visualization, writer
 from DexGanGrasp.utils.writer import Writer
 import bps_torch.bps as b_torch
 
 import tf.transformations
-# from bps_torch.utils import to_np
 # Add GraspInference to the path and import
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..','src'))
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 
 from inference.segmentation import PlaneSegmentation
 from inference.realsense import RealSense
-
-# Data collection
-# from inference.grasp_viewer import show_grasp_and_object_given_pcd
-
 import zmq
 import numpy as np
 import open3d as o3d
 from time import time,sleep
-
-
-def vis_all_grasps(pcd,cam_T_grasps_np):
-    obj_pcd_base = pcd.transform(base_T_cam)
-    grasps_to_show = []
-    for j in range(cam_T_grasps_np.shape[0]):
-        cam_T_grasp_np = cam_T_grasps_np[j,:4,:]
-        base_T_palm_np = np.matmul(base_T_cam, cam_T_grasp_np)
-        grasp_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.03)
-        grasp_frame = grasp_frame.transform(base_T_palm_np)
-        grasps_to_show.append(grasp_frame)
-    grasps_to_show.append(obj_pcd_base)
-
-    vis = o3d.visualization.Visualizer()
-    vis.create_window()
-    for f in grasps_to_show:
-        vis.add_geometry(f)
-    vis.run()
 
 def divide_into_trans_quat(base_T_flange):
     flange_quat = tf.transformations.quaternion_from_matrix(base_T_flange)
@@ -79,6 +52,11 @@ flange_T_palm = np.array([[ 0.,  0., -1.,  0.020],
                             [ 1.,  0.,  0.,  0.050],
                             [ 0.,  0.,  0.,  1.]])
 # camera
+base_T_cam = np.array([[ 0.99993021, -0.00887332 ,-0.00779972 , 0.31846705],
+                    [ 0.00500804, -0.2795885  , 0.96010686 ,-1.10184744],
+                    [-0.01070005, -0.96007892 ,-0.27952455 , 0.50819482],
+                    [ 0.        ,  0.         , 0.          ,1.        ]])
+
 save_path = '/workspaces/inference_container/exp_images/'
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
@@ -89,25 +67,16 @@ grasp_region_mask = np.zeros((720,1280),dtype=np.bool)
 # grasp_region_mask[150:420, 150:600] = True  # single obj
 grasp_region_mask[200:630, 530:930] = True  # cupboard grasping
 
-base_T_cam = np.array([[ 0.99993021, -0.00887332 ,-0.00779972 , 0.31846705],
-                    [ 0.00500804, -0.2795885  , 0.96010686 ,-1.10184744],
-                    [-0.01070005, -0.96007892 ,-0.27952455 , 0.50819482],
-                    [ 0.        ,  0.         , 0.          ,1.        ]])
-
 inter_offset = np.array([0.16, 0, 0])
 ROOT_PATH = os.path.dirname(os.path.abspath(__file__))
 BASE_PATH = os.path.split(os.path.split(ROOT_PATH)[0])[0]
 parser = argparse.ArgumentParser()
-# # Best VAE so far:
-# gen_path = "checkpoints/ffhnet/2023-09-01T01_16_11_ffhnet_lr_0.0001_bs_1000"
-# best_epoch = 24
 
 # Best GAN so far:
 gen_path = "checkpoints/ffhgan/2024-03-10T17_31_55_ffhgan_lr_0.0001_bs_1000"
 best_epoch = 32
 parser.add_argument('--gen_path', default=gen_path, help='path to DexGenerator model')
 parser.add_argument('--load_gen_epoch', type=int, default=best_epoch, help='epoch of DexGenerator model')
-# New evaluator:checkpoints/ffhevaluator/2024-06-23_ffhevaluator
 parser.add_argument('--eva_path', default='checkpoints/ffhevaluator/2024-06-23_ffhevaluator', help='path to DexEvaluator model')
 parser.add_argument('--load_eva_epoch', type=int, default=30, help='epoch of DexEvaluator model')
 parser.add_argument('--config', type=str, default='DexGanGrasp/config/config_dexgangrasp.yaml')
@@ -140,11 +109,11 @@ i = 0
 try:
     while True:
         color_image, depth_image, pcd, _ = rs.capture_image()
-        # rs.visualize_color(color_image)
-        # rs.visualize_depth(depth_image)
+        rs.visualize_color(color_image)
+        rs.visualize_depth(depth_image)
 
         pcd = segment.crop_pcd_with_bbox(pcd, grasp_region_mask)
-        # rs.visualize_pcd(pcd)
+        rs.visualize_pcd(pcd)
         pcd = rs.point_cloud_distance_removal(pcd)
         obj_pcd, normal_vector = segment.plane_seg_with_angle_constrain(pcd)
         rs.save_images(i, color_image, depth_image, pcd, obj_pcd)
@@ -155,13 +124,11 @@ try:
         crop_pcd_np = crop_pcd_np[crop_pcd_np[:,2] >0]
         crop_pcd = o3d.geometry.PointCloud()
         crop_pcd.points = o3d.utility.Vector3dVector(crop_pcd_np)
-        # o3d.visualization.draw_geometries([crop_pcd])
         obj_pcd = copy.deepcopy(crop_pcd).transform(np.linalg.inv(base_T_cam))
 
         obj_pcd_cam = deepcopy(obj_pcd)
 
-        ####################### Run Inference  ##############
-        # pcd_base = copy.deepcopy(pcd_raw).transform(base_T_cam)
+        # Run Inference.
         obj_pcd_np = np.asarray(obj_pcd.points)
         pcd_np = np.asarray(pcd.points)
         pc_center = obj_pcd.get_center()
@@ -177,7 +144,7 @@ try:
         grasps = dexgangrasp.generate_grasps(enc_np, n_samples=400, return_arr=True)
         print(grasps)
 
-        # # # Visualize sampled distribution
+        # Visualize sampled distribution
         obj_pcd_path = './obj.pcd'
         o3d.io.write_point_cloud(obj_pcd_path, obj_pcd)
         # visualization.show_generated_grasp_distribution(obj_pcd_path, grasps)
@@ -188,20 +155,13 @@ try:
         print("This means %.2f of grasps pass the filtering" % (n_grasps_filt_2 / 400))
 
         # Visulize filtered distribution
-        # visualization.show_generated_grasp_distribution(obj_pcd_path, filtered_grasps_2)
+        visualization.show_generated_grasp_distribution(obj_pcd_path, filtered_grasps_2)
 
-        # for j in range(n_grasps_filt_2):
-        # Get the grasp sample
         NUM_GRASP = 10
         rot_matrix = filtered_grasps_2['rot_matrix'][:NUM_GRASP, :, :]
         transl = filtered_grasps_2['transl'][:NUM_GRASP, :]
-        # if transl[1] > -0.1:
-        #     continue
         joint_conf = filtered_grasps_2['joint_conf'][:NUM_GRASP, :]
-        # palm in frame wrt center of obj pcd
-
         #### Pick pose for flange:####
-        # palm in frame wrt cam
         grasps  = {}
         for j in range(NUM_GRASP):
 
@@ -242,19 +202,14 @@ try:
 
         np.save("./base2flange_inferred.npy",base_T_flange)
 
-        # visualization.show_grasp_and_object(obj_pcd_path, palm_pose_centr, joint_conf,
-        #                                     'meshes/robotiq_palm/robotiq-3f-gripper_articulated.urdf')
-        #### send grasp to local pc
+        visualization.show_grasp_and_object(obj_pcd_path, palm_pose_centr, joint_conf,
+                                            'meshes/robotiq_palm/robotiq-3f-gripper_articulated.urdf')
+        
         a = input('Break loop? (y/n): ')
         if a == 'y':
             break
-        # send_grasp(base_T_flange)
+
         print('got reply fro zeromq')
-
-        # # TODO: add inference locally
-        # # cam_T_grasps_np = send_pcd(obj_pcd_np,pcd_np)
-
-        # # vis_all_grasps(pcd_raw,cam_T_grasps_np)
         i += 1
 
 except KeyboardInterrupt:
